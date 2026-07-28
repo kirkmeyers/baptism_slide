@@ -1,0 +1,791 @@
+import React, { useState, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
+import JSZip from 'jszip';
+import './App.css';
+import { parseRockInput } from './utils/parser';
+import SlidePreview, { LAYOUTS } from './components/SlidePreview';
+import PhotoCropper from './components/PhotoCropper';
+
+const TEXT_COLOR = '#003A5D';
+const BORDER_COLOR = '#FFFFFF';
+const BORDER_THICKNESS = 8;
+
+// Helper to parse filename formatting: e.g., "1 Catherine Plummer 9.png"
+const parseFilenamePattern = (filename) => {
+  const base = filename.replace(/\.[^/.]+$/, '').trim();
+  const match = base.match(/^(\d+)[_\-\s]+(.+?)[_\-\s]+(\d+)$/);
+  if (match) {
+    const order = parseInt(match[1], 10);
+    const name = match[2].replace(/[_\-]+/g, ' ').trim();
+    const serviceCode = match[3];
+    
+    let serviceTime = '9:00 AM';
+    if (serviceCode === '9') serviceTime = '9:00 AM';
+    else if (serviceCode === '11') serviceTime = '11:15 AM';
+    else if (serviceCode === '4') serviceTime = '4:00 PM';
+    
+    return { order, name, serviceTime };
+  }
+  return null;
+};
+
+export default function App() {
+  const [candidates, setCandidates] = useState([]);
+  const [photos, setPhotos] = useState([]);
+  const [activeTab, setActiveTab] = useState('9:00 AM'); // '9:00 AM', '11:15 AM', or '4:00 PM'
+  const [peoplePerSlide, setPeoplePerSlide] = useState('auto'); // default auto-balance
+  
+  // Slide grouping state: { '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] }
+  const [slides, setSlides] = useState({ '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] });
+  
+  // Crop editor state
+  const [editingPhoto, setEditingPhoto] = useState(null); // { slideId, personIdx }
+
+  // Background template Image element cache
+  const [templateLoaded, setTemplateLoaded] = useState(false);
+  const [templateImgEl, setTemplateImgEl] = useState(null);
+
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState('');
+
+  // Load template image on startup (check custom template cache first)
+  useEffect(() => {
+    const customTemplate = localStorage.getItem('custom_template_data');
+    const img = new Image();
+    img.src = customTemplate || '/template.png';
+    img.onload = () => {
+      setTemplateImgEl(img);
+      setTemplateLoaded(true);
+    };
+    img.onerror = () => {
+      if (customTemplate) {
+        const fallback = new Image();
+        fallback.src = '/template.png';
+        fallback.onload = () => {
+          setTemplateImgEl(fallback);
+          setTemplateLoaded(true);
+        };
+      }
+    };
+  }, []);
+
+  const handleTemplateUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = url;
+    img.onload = () => {
+      setTemplateImgEl(img);
+      setTemplateLoaded(true);
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        try {
+          localStorage.setItem('custom_template_data', reader.result);
+          triggerToast('Saved custom background template!');
+        } catch (err) {
+          console.warn('Failed to save template to localStorage:', err);
+          triggerToast('Loaded background template (not cached).');
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+  };
+
+  const handleResetTemplate = () => {
+    localStorage.removeItem('custom_template_data');
+    const img = new Image();
+    img.src = '/template.png?t=' + Date.now(); // Cache bust the reload
+    img.onload = () => {
+      setTemplateImgEl(img);
+      setTemplateLoaded(true);
+      triggerToast('Reset to default background template!');
+    };
+  };
+
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
+
+  // Re-layouts all candidates into slides based on current chunk size
+  const autoLayoutCandidates = (candidateList, perSlide) => {
+    const services = ['9:00 AM', '11:15 AM', '4:00 PM'];
+    const newSlides = { '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] };
+
+    services.forEach((service) => {
+      const filtered = [...candidateList.filter(c => c.serviceTime === service)];
+      
+      // Sort candidates by order left-to-right (if specified in filename)
+      filtered.sort((a, b) => {
+        const orderA = a.order !== undefined && a.order !== null ? a.order : 999;
+        const orderB = b.order !== undefined && b.order !== null ? b.order : 999;
+        return orderA - orderB;
+      });
+
+      const N = filtered.length;
+      if (N === 0) return;
+
+      if (perSlide === 'auto') {
+        // Auto-Balance strategy:
+        // - N <= 4: 1 slide of size N
+        // - 4 < N <= 8: 2 slides of size N/2 balanced
+        // - N > 8: math.ceil(N/4) slides of size N/S balanced
+        const S = Math.ceil(N / 4);
+        const base = Math.floor(N / S);
+        const rem = N % S;
+        let currentIndex = 0;
+        
+        for (let s = 0; s < S; s++) {
+          const size = s < rem ? base + 1 : base;
+          const chunk = filtered.slice(currentIndex, currentIndex + size);
+          currentIndex += size;
+          newSlides[service].push({
+            id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${s}`,
+            people: chunk
+          });
+        }
+      } else {
+        // Numeric per-slide strategy (K per slide)
+        const K = parseInt(perSlide, 10) || 2;
+        for (let i = 0; i < N; i += K) {
+          const chunk = filtered.slice(i, i + K);
+          newSlides[service].push({
+            id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${i / K}`,
+            people: chunk
+          });
+        }
+      }
+    });
+
+    setSlides(newSlides);
+  };
+
+  // Synchronize candidates list and slides with uploaded photos
+  useEffect(() => {
+    const newCandidates = photos.map((photo) => {
+      // Photo cleanName and parsed values are stored on photoObj during upload
+      const cleanName = photo.name.replace(/\.[^/.]+$/, '').replace(/^[0-9]+[_\-\s]+/, '').replace(/[_\-\s]+[0-9]+$/, '').replace(/[_\-]+/g, ' ').trim();
+      const first = cleanName.split(' ')[0] || '';
+      const last = cleanName.split(' ').slice(1).join(' ') || '';
+
+      return {
+        id: photo.name,
+        fullName: cleanName,
+        firstName: first,
+        lastName: last,
+        serviceTime: photo.service || '9:00 AM',
+        order: photo.order !== null ? photo.order : 999,
+        imageFile: photo,
+        zoom: photo.zoom || 1,
+        panX: photo.panX || 0,
+        panY: photo.panY || 0
+      };
+    });
+
+    setCandidates(newCandidates);
+    autoLayoutCandidates(newCandidates, peoplePerSlide);
+  }, [photos, peoplePerSlide]);
+
+  // Handle Photo files upload
+  const handlePhotoUpload = (e) => {
+    const allFiles = Array.from(e.target.files || []);
+    const files = allFiles.filter(file => file.type.startsWith('image/'));
+    
+    if (files.length === 0) {
+      triggerToast('No image files found in selection!');
+      return;
+    }
+
+    const newPhotos = [];
+    let loadedCount = 0;
+
+    files.forEach((file) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.src = url;
+      
+      const checkCompletion = () => {
+        loadedCount++;
+        if (loadedCount === files.length) {
+          setPhotos((prev) => [...prev, ...newPhotos]);
+          triggerToast(`Uploaded and processed ${newPhotos.length} photos!`);
+        }
+      };
+
+      img.onload = () => {
+        const parsedMeta = parseFilenamePattern(file.name);
+        const photoObj = {
+          name: file.name,
+          cleanName: parsedMeta ? parsedMeta.name.toLowerCase().replace(/[^a-z0-9]/g, '') : file.name.toLowerCase().replace(/\.[^/.]+$/, '').replace(/[^a-z0-9]/g, ''),
+          url: url,
+          _element: img,
+          order: parsedMeta ? parsedMeta.order : null,
+          service: parsedMeta ? parsedMeta.serviceTime : null,
+          zoom: 1,
+          panX: 0,
+          panY: 0
+        };
+        newPhotos.push(photoObj);
+        checkCompletion();
+      };
+
+      img.onerror = () => {
+        console.error('Failed to load image:', file.name);
+        checkCompletion();
+      };
+    });
+  };
+
+  const removePhoto = (photoName) => {
+    setPhotos((prev) => prev.filter((p) => p.name !== photoName));
+  };
+
+  // Load Mock / Sample Data for local previewing
+  const handleLoadSamples = () => {
+    const sampleFiles = [
+      { name: '1 Catherine Plummer 9.png', file: 'catherine_plummer.png', zoom: 1.3, panX: -20, panY: -15 },
+      { name: '2 Angelica Mendes 9.png', file: 'angelica_mendes.png', zoom: 1.4, panX: 10, panY: 20 },
+      { name: '3 Mason Wood 9.png', file: 'mason_wood.png', zoom: 1.25, panX: 0, panY: 25 },
+      { name: '1 Isabella Lindsey 11.png', file: 'isabella_lindsey.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '2 Marcos Herrara 11.png', file: 'marcos_herrara.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '1 Sophie Hines 4.png', file: 'sophie_hines.png', zoom: 1.45, panX: 0, panY: 15 },
+      { name: '2 Graham Shelton 4.png', file: 'graham_shelton.png', zoom: 1.35, panX: 0, panY: -10 },
+      { name: '3 Jude Hutchison 4.png', file: 'jude_hutchison.png', zoom: 1.4, panX: 0, panY: 10 },
+      { name: '4 Lola Hutchison 4.png', file: 'lola_hutchison.png', zoom: 1.3, panX: 0, panY: 5 }
+    ];
+
+    let loadedCount = 0;
+    const loadedPhotos = [];
+
+    sampleFiles.forEach((sample) => {
+      const img = new Image();
+      img.src = `/samples/${sample.file}`;
+      img.onload = () => {
+        const parsedMeta = parseFilenamePattern(sample.name);
+        loadedPhotos.push({
+          name: sample.name,
+          cleanName: parsedMeta ? parsedMeta.name.toLowerCase().replace(/[^a-z0-9]/g, '') : sample.name.toLowerCase(),
+          url: img.src,
+          _element: img,
+          order: parsedMeta ? parsedMeta.order : null,
+          service: parsedMeta ? parsedMeta.serviceTime : null,
+          zoom: sample.zoom,
+          panX: sample.panX,
+          panY: sample.panY
+        });
+        loadedCount++;
+
+        if (loadedCount === sampleFiles.length) {
+          setPhotos(loadedPhotos);
+          triggerToast('Loaded sample candidate data and matched photos!');
+        }
+      };
+    });
+  };
+
+  // Re-layout triggering on layout count change
+  const handleLayoutChange = (e) => {
+    const val = e.target.value;
+    setPeoplePerSlide(val);
+    autoLayoutCandidates(candidates, val);
+    triggerToast(val === 'auto' ? 'Regenerated layouts: Auto-Balanced' : `Regenerated layouts: ${val} per slide.`);
+  };
+
+  // Assign photo to a slide's specific person slot
+  const handleAssignPhoto = (slideId, personIdx, photoObj) => {
+    setSlides((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((service) => {
+        updated[service] = updated[service].map((slide) => {
+          if (slide.id !== slideId) return slide;
+          const people = [...slide.people];
+          people[personIdx] = {
+            ...people[personIdx],
+            imageFile: photoObj
+          };
+          return { ...slide, people };
+        });
+      });
+      return updated;
+    });
+    triggerToast('Matched photo to slide card!');
+  };
+
+  // Open cropping tool modal
+  const handleEditPhoto = (slideId, personIdx) => {
+    setEditingPhoto({ slideId, personIdx });
+  };
+
+  // Save crop adjustments for all people on a slide
+  const handleUpdateCrop = (slideId, draftCropsArray) => {
+    const slide = [...slides['9:00 AM'], ...slides['11:15 AM'], ...slides['4:00 PM']].find(s => s.id === slideId);
+    if (!slide) return;
+
+    setPhotos((prev) =>
+      prev.map((photo) => {
+        const personIdx = slide.people.findIndex(p => p.imageFile && p.imageFile.name === photo.name);
+        if (personIdx !== -1 && draftCropsArray[personIdx]) {
+          const crop = draftCropsArray[personIdx];
+          return { ...photo, zoom: crop.zoom, panX: crop.panX, panY: crop.panY };
+        }
+        return photo;
+      })
+    );
+    triggerToast('Applied slide crop adjustments!');
+  };
+
+  // Add a new empty slide to current service
+  const handleAddNewSlide = () => {
+    setSlides((prev) => {
+      const updated = { ...prev };
+      updated[activeTab] = [
+        ...updated[activeTab],
+        {
+          id: `${activeTab.replace(/[^a-z0-9]/gi, '')}_slide_custom_${Date.now()}`,
+          people: []
+        }
+      ];
+      return updated;
+    });
+    triggerToast('Added new slide!');
+  };
+
+  // Delete slide
+  const handleDeleteSlide = (slideId) => {
+    setSlides((prev) => {
+      const updated = { ...prev };
+      updated[activeTab] = updated[activeTab].filter(s => s.id !== slideId);
+      return updated;
+    });
+    triggerToast('Deleted slide');
+  };
+
+  // Export current service slides to ZIP
+  // Export current service slides as raw PNG files (individual downloads)
+  const handleExportSlides = async () => {
+    const activeSlides = slides[activeTab];
+    if (activeSlides.length === 0) {
+      triggerToast('No slides to export!');
+      return;
+    }
+
+    // Create an offscreen canvas to render high-res images
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = 1920;
+    exportCanvas.height = 1080;
+    const ctx = exportCanvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    triggerToast('Generating and downloading graphics... please wait.');
+
+    let index = 1;
+    for (const slide of activeSlides) {
+      // Clear
+      ctx.clearRect(0, 0, 1920, 1080);
+      
+      // Draw background
+      if (templateLoaded && templateImgEl) {
+        ctx.drawImage(templateImgEl, 0, 0, 1920, 1080);
+      } else {
+        ctx.fillStyle = '#F4F2EF';
+        ctx.fillRect(0, 0, 1920, 1080);
+      }
+
+      // Draw people
+      const N = slide.people.length;
+      const layout = LAYOUTS[N] || [];
+
+      for (let i = 0; i < N; i++) {
+        const person = slide.people[i];
+        const box = layout[i];
+        if (!box) continue;
+
+        const { x, y, size } = box;
+        const innerX = x + BORDER_THICKNESS;
+        const innerY = y + BORDER_THICKNESS;
+        const innerSize = size - 2 * BORDER_THICKNESS;
+
+        if (person.imageFile) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(innerX, innerY, innerSize, innerSize);
+          ctx.clip();
+
+          const img = person.imageFile._element;
+          if (img) {
+            const zoom = person.zoom || 1;
+            const panX = person.panX || 0;
+            const panY = person.panY || 0;
+
+            const imgW = img.width;
+            const imgH = img.height;
+
+            let renderW, renderH;
+            if (imgW < imgH) {
+              renderW = innerSize;
+              renderH = imgH * (innerSize / imgW);
+            } else {
+              renderH = innerSize;
+              renderW = imgW * (innerSize / imgH);
+            }
+
+            renderW *= zoom;
+            renderH *= zoom;
+
+            const renderX = innerX + (innerSize - renderW) / 2 + panX;
+            const renderY = innerY + (innerSize - renderH) / 2 + panY;
+
+            ctx.drawImage(img, renderX, renderY, renderW, renderH);
+          }
+          ctx.restore();
+        } else {
+          // Drawing light gray placeholder for empty photos on export
+          ctx.fillStyle = '#E2E8F0';
+          ctx.fillRect(innerX, innerY, innerSize, innerSize);
+        }
+
+        // Draw white border
+        ctx.lineWidth = BORDER_THICKNESS;
+        ctx.strokeStyle = BORDER_COLOR;
+        ctx.strokeRect(x + BORDER_THICKNESS/2, y + BORDER_THICKNESS/2, size - BORDER_THICKNESS, size - BORDER_THICKNESS);
+
+        // Draw names
+        ctx.textAlign = 'center';
+        const textX = x + size / 2;
+        ctx.fillStyle = TEXT_COLOR;
+
+        // First Name Bold
+        ctx.font = '700 60px Lato, sans-serif';
+        ctx.fillText((person.firstName || '').toUpperCase(), textX, 910);
+
+        // Last Name Light
+        ctx.font = '300 60px Lato, sans-serif';
+        ctx.fillText(person.lastName || '', textX, 980);
+      }
+
+      // Convert canvas to Blob
+      const blob = await new Promise((resolve) => {
+        exportCanvas.toBlob((b) => resolve(b), 'image/png');
+      });
+
+      // Download directly as PNG
+      const filename = `${activeTab.replace(/[^a-z0-9]/gi, '')}_slide_${index.toString().padStart(2, '0')}.png`;
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(downloadUrl);
+
+      index++;
+      // A small delay to prevent browsers from blocking rapid multiple file downloads
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+
+    // Celebration Confetti!
+    confetti({
+      particleCount: 150,
+      spread: 80,
+      origin: { y: 0.6 }
+    });
+
+    triggerToast('All slides exported and downloaded successfully!');
+  };
+
+
+
+  const copyRosterToClipboard = (service) => {
+    const serviceCands = candidates.filter(c => c.serviceTime === service);
+    const namesText = serviceCands.map(c => c.fullName).join('\n');
+    if (!namesText) {
+      triggerToast('No names to copy!');
+      return;
+    }
+    navigator.clipboard.writeText(namesText);
+    triggerToast(`Copied ${service} roster to clipboard!`);
+  };
+
+  // Reset all state
+  const handleClearAll = () => {
+    if (window.confirm('Are you sure you want to clear all candidates and photos?')) {
+      setCandidates([]);
+      setPhotos([]);
+      setSlides({ '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] });
+      triggerToast('Cleared all data.');
+    }
+  };
+
+  // Find active editing photo
+  const editingSlide = editingPhoto
+    ? [...slides['9:00 AM'], ...slides['11:15 AM'], ...slides['4:00 PM']].find(s => s.id === editingPhoto.slideId)
+    : null;
+
+  return (
+    <div className="app-container">
+      {/* Decorative Glow Backgrounds */}
+      <div className="bg-glow-1"></div>
+      <div className="bg-glow-2"></div>
+
+      {/* Header */}
+      <header className="app-header">
+        <div className="brand-section">
+          <div className="logo-icon">W</div>
+          <div>
+            <h1>Watermark Baptism Graphics</h1>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Automated Slide Compositor • 1920x1080 HD</p>
+          </div>
+        </div>
+        <div className="header-actions">
+          <label className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer', margin: 0 }}>
+            🖼️ Change Template
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleTemplateUpload}
+              style={{ display: 'none' }}
+            />
+          </label>
+          <button className="btn-secondary" onClick={handleResetTemplate} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+            🔄 Reset Template
+          </button>
+          <button className="btn-secondary" onClick={handleClearAll} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+            Reset App
+          </button>
+          <button className="btn-primary" onClick={handleLoadSamples} style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>
+            ⚡ Load Sample Data
+          </button>
+        </div>
+      </header>
+
+      {/* Workspace Grid */}
+      <div className="app-workspace">
+        
+        {/* Left column / Sidebar */}
+        <aside className="app-sidebar">
+                 {/* Step 1: Upload Photos */}
+          <div className="glass-panel">
+            <h3 className="panel-title">
+              1. Upload Candidate Photos
+              <span className="badge">{photos.length} Files</span>
+            </h3>
+            <label className="upload-zone">
+              <input
+                type="file"
+                multiple
+                webkitdirectory="true"
+                directory="true"
+                onChange={handlePhotoUpload}
+                style={{ display: 'none' }}
+              />
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ margin: '0 auto 0.5rem' }}>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+              <div className="upload-text">
+                <strong>Click to Upload Folder</strong> or select files
+              </div>
+            </label>
+
+            {photos.length > 0 && (
+              <div className="photo-file-list">
+                {photos.map((p) => (
+                  <div key={p.name} className="photo-file-item">
+                    <img src={p.url} alt={p.name} />
+                    <button className="btn-remove-file" onClick={() => removePhoto(p.name)}>&times;</button>
+                    <div className="file-badge">{p.name}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Step 2: Copyable Rosters Output */}
+          <div className="glass-panel" style={{ flex: 1, minHeight: '200px', display: 'flex', flexDirection: 'column' }}>
+            <h3 className="panel-title">
+              2. Generated Rosters
+              <span className="badge">{candidates.length} Total</span>
+            </h3>
+            
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', paddingRight: '0.25rem' }}>
+              {candidates.length === 0 ? (
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textAlign: 'center', padding: '2rem 0' }}>
+                  Upload photo files to generate rosters.
+                </div>
+              ) : (
+                ['9:00 AM', '11:15 AM', '4:00 PM'].map((group) => {
+                  const groupCands = candidates.filter(c => c.serviceTime === group);
+                  if (groupCands.length === 0) return null;
+                  
+                  return (
+                    <div key={group} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-teal)' }}>
+                          {group} Service ({groupCands.length})
+                        </span>
+                        <button
+                          onClick={() => copyRosterToClipboard(group)}
+                          style={{
+                            background: 'rgba(0, 242, 254, 0.1)',
+                            border: '1px solid rgba(0, 242, 254, 0.3)',
+                            borderRadius: '4px',
+                            color: 'var(--accent-teal)',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            padding: '0.15rem 0.4rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <textarea
+                        readOnly
+                        value={groupCands.map(c => c.fullName).join('\n')}
+                        style={{
+                          width: '100%',
+                          height: '80px',
+                          background: 'rgba(7, 10, 19, 0.4)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
+                          color: 'var(--text-primary)',
+                          padding: '0.4rem',
+                          fontSize: '0.8rem',
+                          fontFamily: 'inherit',
+                          resize: 'none',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+        </aside>
+
+        {/* Main content grid display */}
+        <main className="app-content">
+          <div className="tabs-container">
+            <div className="tabs">
+              <button
+                className={`tab-btn ${activeTab === '9:00 AM' ? 'active' : ''}`}
+                onClick={() => setActiveTab('9:00 AM')}
+              >
+                9:00 AM
+                <span className="slide-count-badge">{slides['9:00 AM']?.length || 0}</span>
+              </button>
+              <button
+                className={`tab-btn ${activeTab === '11:15 AM' ? 'active' : ''}`}
+                onClick={() => setActiveTab('11:15 AM')}
+              >
+                11:15 AM
+                <span className="slide-count-badge">{slides['11:15 AM']?.length || 0}</span>
+              </button>
+              <button
+                className={`tab-btn ${activeTab === '4:00 PM' ? 'active' : ''}`}
+                onClick={() => setActiveTab('4:00 PM')}
+              >
+                4:00 PM
+                <span className="slide-count-badge">{slides['4:00 PM']?.length || 0}</span>
+              </button>
+            </div>
+
+            {/* Slide settings and bulk actions */}
+            <div className="controls-panel">
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                Default Layout:
+                <select
+                  value={peoplePerSlide}
+                  onChange={handleLayoutChange}
+                  style={{ marginLeft: '0.5rem' }}
+                >
+                  <option value="auto">Auto-Balance (Recommended)</option>
+                  <option value="1">1 Candidate / Slide</option>
+                  <option value="2">2 Candidates / Slide</option>
+                  <option value="3">3 Candidates / Slide</option>
+                  <option value="4">4 Candidates / Slide</option>
+                </select>
+              </label>
+
+              <button className="btn-secondary" onClick={handleAddNewSlide} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                + Add Slide
+              </button>
+
+              <button className="btn-primary" onClick={handleExportSlides} style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                Download Slides
+              </button>
+            </div>
+          </div>
+
+          {/* Slides grid rendering */}
+          {slides[activeTab].length === 0 ? (
+            <div className="empty-state">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="9" y1="17" x2="9" y2="8"/>
+                <line x1="15" y1="17" x2="15" y2="14"/>
+              </svg>
+              <h3>No Baptism Slides Created</h3>
+              <p>Upload photos to auto-populate baptism slides for this service time.</p>
+            </div>
+          ) : (
+            <div className="slides-grid">
+              {slides[activeTab].map((slide, sIdx) => (
+                <div key={slide.id} className="slide-card-wrapper">
+                  <div className="slide-header">
+                    <span>SLIDE {sIdx + 1} ({slide.people.length} People)</span>
+                    <div className="actions">
+                      <button
+                        className="slide-btn-small delete"
+                        onClick={() => handleDeleteSlide(slide.id)}
+                        title="Delete Slide"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  </div>
+                  <SlidePreview
+                    slide={slide}
+                    availablePhotos={photos}
+                    onAssignPhoto={handleAssignPhoto}
+                    onEditPhoto={handleEditPhoto}
+                    templateImageLoaded={templateLoaded}
+                    templateImgElement={templateImgEl}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Popover/Modal for Interactive Cropping */}
+      {editingPhoto && editingSlide && (
+        <PhotoCropper
+          slide={editingSlide}
+          personIdx={editingPhoto.personIdx}
+          onUpdateCrop={handleUpdateCrop}
+          onClose={() => setEditingPhoto(null)}
+          templateImgElement={templateImgEl}
+        />
+      )}
+
+      {/* Toast notifications */}
+      {toastMessage && (
+        <div className="toast-notification">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+    </div>
+  );
+}
