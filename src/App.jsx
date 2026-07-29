@@ -246,15 +246,15 @@ export default function App() {
   // Load Mock / Sample Data for local previewing
   const handleLoadSamples = () => {
     const sampleFiles = [
-      { name: '1 Catherine Plummer 9.png', file: 'catherine_plummer.png', zoom: 1.3, panX: -20, panY: -15 },
-      { name: '2 Angelica Mendes 9.png', file: 'angelica_mendes.png', zoom: 1.4, panX: 10, panY: 20 },
-      { name: '3 Mason Wood 9.png', file: 'mason_wood.png', zoom: 1.25, panX: 0, panY: 25 },
-      { name: '1 Isabella Lindsey 11.png', file: 'isabella_lindsey.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '2 Marcos Herrara 11.png', file: 'marcos_herrara.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '1 Sophie Hines 4.png', file: 'sophie_hines.png', zoom: 1.45, panX: 0, panY: 15 },
-      { name: '2 Graham Shelton 4.png', file: 'graham_shelton.png', zoom: 1.35, panX: 0, panY: -10 },
-      { name: '3 Jude Hutchison 4.png', file: 'jude_hutchison.png', zoom: 1.4, panX: 0, panY: 10 },
-      { name: '4 Lola Hutchison 4.png', file: 'lola_hutchison.png', zoom: 1.3, panX: 0, panY: 5 }
+      { name: '1 Jane Smith 9.png', file: 'jane_smith.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '2 Mary Jones 9.png', file: 'mary_jones.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '3 John Smith 9.png', file: 'john_smith.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '1 Emily Davis 11.png', file: 'emily_davis.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '2 Michael Taylor 11.png', file: 'michael_taylor.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '1 Sarah Thomas 4.png', file: 'sarah_thomas.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '2 David Wilson 4.png', file: 'david_wilson.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '3 James Miller 4.png', file: 'james_miller.png', zoom: 1, panX: 0, panY: 0 },
+      { name: '4 Lisa Brown 4.png', file: 'lisa_brown.png', zoom: 1, panX: 0, panY: 0 }
     ];
 
     let loadedCount = 0;
