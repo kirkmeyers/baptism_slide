@@ -21,13 +21,76 @@ export default function PhotoCropper({
   // Track the active editing person index in local state
   const [activeIdx, setActiveIdx] = useState(personIdx);
 
-  // Store draft crop settings for all people on this slide
+  // Get bounds for panning coordinates to prevent showing empty edges
+  const getPanLimits = (idx, zoomVal) => {
+    const b = layout[idx];
+    const p = people[idx];
+    if (!b || !p || !p.imageFile) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+    const size = b.size;
+    const innerSize = size - 2 * BORDER_THICKNESS;
+    const img = p.imageFile._element;
+    if (!img) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+    const imgW = img.width;
+    const imgH = img.height;
+
+    let renderW, renderH;
+    if (imgW < imgH) {
+      renderW = innerSize;
+      renderH = imgH * (innerSize / imgW);
+    } else {
+      renderH = innerSize;
+      renderW = imgW * (innerSize / imgH);
+    }
+
+    renderW *= zoomVal;
+    renderH *= zoomVal;
+
+    const minX = (innerSize - renderW) / 2;
+    const maxX = (renderW - innerSize) / 2;
+    const minY = (innerSize - renderH) / 2;
+    const maxY = (renderH - innerSize) / 2;
+
+    return { minX, maxX, minY, maxY };
+  };
+
+  // Store draft crop settings for all people on this slide (clamped on mount)
   const [draftPeople, setDraftPeople] = useState(() => 
-    people.map(p => ({
-      zoom: p.zoom || 1,
-      panX: p.panX || 0,
-      panY: p.panY || 0
-    }))
+    people.map((p, idx) => {
+      const initZoom = p.zoom || 1;
+      const initPanX = p.panX || 0;
+      const initPanY = p.panY || 0;
+      
+      const b = layout[idx];
+      if (b && p.imageFile && p.imageFile._element) {
+        const size = b.size;
+        const innerSize = size - 2 * BORDER_THICKNESS;
+        const img = p.imageFile._element;
+        const imgW = img.width;
+        const imgH = img.height;
+        let renderW, renderH;
+        if (imgW < imgH) {
+          renderW = innerSize;
+          renderH = imgH * (innerSize / imgW);
+        } else {
+          renderH = innerSize;
+          renderW = imgW * (innerSize / imgH);
+        }
+        renderW *= initZoom;
+        renderH *= initZoom;
+        const minX = (innerSize - renderW) / 2;
+        const maxX = (renderW - innerSize) / 2;
+        const minY = (innerSize - renderH) / 2;
+        const maxY = (renderH - innerSize) / 2;
+        return {
+          zoom: initZoom,
+          panX: Math.max(minX, Math.min(maxX, initPanX)),
+          panY: Math.max(minY, Math.min(maxY, initPanY))
+        };
+      }
+      return { zoom: initZoom, panX: initPanX, panY: initPanY };
+    })
   );
   
   const isDragging = useRef(false);
@@ -37,6 +100,7 @@ export default function PhotoCropper({
   const activePerson = people[activeIdx];
   const activeBox = layout[activeIdx];
   const activeDraft = draftPeople[activeIdx] || { zoom: 1, panX: 0, panY: 0 };
+  const limits = getPanLimits(activeIdx, activeDraft.zoom);
 
   // Sync initialPan when active slot changes
   useEffect(() => {
@@ -197,8 +261,13 @@ export default function PhotoCropper({
     const scaleX = CANVAS_WIDTH / rect.width;
     const scaleY = CANVAS_HEIGHT / rect.height;
 
-    const newPanX = initialPan.current.x + dx * scaleX;
-    const newPanY = initialPan.current.y + dy * scaleY;
+    const rawPanX = initialPan.current.x + dx * scaleX;
+    const rawPanY = initialPan.current.y + dy * scaleY;
+
+    // Clamp coordinates using active limits
+    const { minX, maxX, minY, maxY } = getPanLimits(activeIdx, activeDraft.zoom);
+    const newPanX = Math.max(minX, Math.min(maxX, rawPanX));
+    const newPanY = Math.max(minY, Math.min(maxY, rawPanY));
 
     // Update pan coordinates in local drafts list
     setDraftPeople(prev => 
@@ -248,7 +317,16 @@ export default function PhotoCropper({
                   value={activeDraft.zoom}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);
-                    setDraftPeople(prev => prev.map((item, idx) => idx === activeIdx ? { ...item, zoom: val } : item));
+                    setDraftPeople(prev => 
+                      prev.map((item, idx) => {
+                        if (idx !== activeIdx) return item;
+                        // Re-clamp panning offset for this new zoom level
+                        const { minX, maxX, minY, maxY } = getPanLimits(idx, val);
+                        const clampedX = Math.max(minX, Math.min(maxX, item.panX));
+                        const clampedY = Math.max(minY, Math.min(maxY, item.panY));
+                        return { ...item, zoom: val, panX: clampedX, panY: clampedY };
+                      })
+                    );
                   }}
                   className="range-input"
                   style={{ marginTop: '0.5rem' }}
@@ -262,12 +340,13 @@ export default function PhotoCropper({
                 </label>
                 <input
                   type="range"
-                  min="-500"
-                  max="500"
+                  min={limits.minX}
+                  max={limits.maxX}
                   step="1"
                   value={activeDraft.panX}
+                  disabled={limits.minX === limits.maxX}
                   onChange={(e) => {
-                    const val = parseInt(e.target.value);
+                    const val = parseInt(e.target.value, 10);
                     setDraftPeople(prev => prev.map((item, idx) => idx === activeIdx ? { ...item, panX: val } : item));
                   }}
                   className="range-input"
@@ -282,12 +361,13 @@ export default function PhotoCropper({
                 </label>
                 <input
                   type="range"
-                  min="-500"
-                  max="500"
+                  min={limits.minY}
+                  max={limits.maxY}
                   step="1"
                   value={activeDraft.panY}
+                  disabled={limits.minY === limits.maxY}
                   onChange={(e) => {
-                    const val = parseInt(e.target.value);
+                    const val = parseInt(e.target.value, 10);
                     setDraftPeople(prev => prev.map((item, idx) => idx === activeIdx ? { ...item, panY: val } : item));
                   }}
                   className="range-input"
@@ -300,6 +380,7 @@ export default function PhotoCropper({
                 <ul>
                   <li>Click directly on any photo in the template preview to start editing it.</li>
                   <li>Drag the photo inside the glowing box frame to center faces.</li>
+                  <li>Photos are constrained so their edges never slide past the white border.</li>
                   <li>Click Apply to save all adjustments made to this slide.</li>
                 </ul>
               </div>
