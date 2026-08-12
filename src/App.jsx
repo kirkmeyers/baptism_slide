@@ -195,7 +195,6 @@ export default function App() {
     const newCandidates = photos.map((photo) => {
       let first = photo.firstName;
       let last = photo.lastName;
-      let cleanName = photo.name.replace(/\.[^/.]+$/, '').replace(/[_\-]+/g, ' ').trim();
       let service = photo.service || '9:00 AM';
 
       if (!first && !last) {
@@ -203,19 +202,19 @@ export default function App() {
         if (parsed) {
           first = parsed.firstName;
           last = parsed.lastName;
-          cleanName = parsed.name;
           service = parsed.serviceTime;
         } else {
           const clean = photo.name.replace(/\.[^/.]+$/, '').replace(/^[0-9]+[_\-\s]+/, '').replace(/[_\-\s]+[0-9]+$/, '').replace(/[_\-]+/g, ' ').trim();
           first = clean.split(' ')[0] || '';
           last = clean.split(' ').slice(1).join(' ') || '';
-          cleanName = clean;
         }
       }
 
+      const fullName = `${first} ${last}`.trim();
+
       return {
         id: photo.name,
-        fullName: cleanName,
+        fullName: fullName,
         firstName: first,
         lastName: last,
         serviceTime: service,
