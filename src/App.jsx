@@ -139,17 +139,9 @@ export default function App() {
     services.forEach((service) => {
       const filtered = [...candidateList.filter(c => c.serviceTime === service)];
       
-      // Sort candidates alphabetically by last name per service
+      // Sort candidates by custom sortOrder
       filtered.sort((a, b) => {
-        const lastA = (a.lastName || '').toLowerCase();
-        const lastB = (b.lastName || '').toLowerCase();
-        if (lastA < lastB) return -1;
-        if (lastA > lastB) return 1;
-        const firstA = (a.firstName || '').toLowerCase();
-        const firstB = (b.firstName || '').toLowerCase();
-        if (firstA < firstB) return -1;
-        if (firstA > firstB) return 1;
-        return 0;
+        return (a.sortOrder || 0) - (b.sortOrder || 0);
       });
 
       const N = filtered.length;
@@ -192,6 +184,57 @@ export default function App() {
 
   // Synchronize candidates list and slides with uploaded photos
   useEffect(() => {
+    // If any photo is missing sortOrder, initialize them sequentially (default to alphabetical by last name per service)
+    let needsUpdate = false;
+    photos.forEach((p) => {
+      if (p.sortOrder === undefined || p.sortOrder === null) {
+        needsUpdate = true;
+      }
+    });
+
+    if (needsUpdate) {
+      const servicesOrder = ['9:00 AM', '11:15 AM', '4:00 PM'];
+      const parsedPhotos = photos.map(p => {
+        const parsed = parseFilenamePattern(p.name) || { firstName: '', lastName: '', serviceTime: '9:00 AM' };
+        return {
+          ...p,
+          firstName: p.firstName || parsed.firstName,
+          lastName: p.lastName || parsed.lastName,
+          service: p.service || parsed.serviceTime
+        };
+      });
+
+      // Sort: service group first, then alphabetical by last name
+      parsedPhotos.sort((a, b) => {
+        const sA = servicesOrder.indexOf(a.service);
+        const sB = servicesOrder.indexOf(b.service);
+        if (sA !== sB) return sA - sB;
+
+        const lastA = (a.lastName || '').toLowerCase();
+        const lastB = (b.lastName || '').toLowerCase();
+        if (lastA < lastB) return -1;
+        if (lastA > lastB) return 1;
+
+        const firstA = (a.firstName || '').toLowerCase();
+        const firstB = (b.firstName || '').toLowerCase();
+        if (firstA < firstB) return -1;
+        if (firstA > firstB) return 1;
+        return 0;
+      });
+
+      // Map back to photos state with sequential sortOrder
+      const finalPhotos = photos.map((origPhoto) => {
+        const sortedIdx = parsedPhotos.findIndex(p => p.name === origPhoto.name);
+        return {
+          ...origPhoto,
+          sortOrder: sortedIdx
+        };
+      });
+
+      setPhotos(finalPhotos);
+      return;
+    }
+
     const newCandidates = photos.map((photo) => {
       let first = photo.firstName;
       let last = photo.lastName;
@@ -219,6 +262,7 @@ export default function App() {
         lastName: last,
         serviceTime: service,
         imageFile: photo,
+        sortOrder: photo.sortOrder || 0,
         zoom: photo.zoom || 1,
         panX: photo.panX || 0,
         panY: photo.panY || 0
@@ -325,6 +369,39 @@ export default function App() {
           triggerToast('Loaded sample candidate data and matched photos!');
         }
       };
+    });
+  };
+
+  const handleMoveCandidate = (candidateId, direction) => {
+    // Find the candidate
+    const targetCand = candidates.find(c => c.id === candidateId);
+    if (!targetCand) return;
+    
+    const service = targetCand.serviceTime;
+    // Get all candidates of this service, sorted by current sortOrder
+    const serviceCands = candidates
+      .filter(c => c.serviceTime === service)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      
+    const idx = serviceCands.findIndex(c => c.id === candidateId);
+    if (idx === -1) return;
+    
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= serviceCands.length) return;
+    
+    const swapCand = serviceCands[swapIdx];
+    
+    // Swap their sortOrder inside the photos state
+    setPhotos((prev) => {
+      return prev.map((p) => {
+        if (p.name === targetCand.id) {
+          return { ...p, sortOrder: swapCand.sortOrder };
+        }
+        if (p.name === swapCand.id) {
+          return { ...p, sortOrder: targetCand.sortOrder };
+        }
+        return p;
+      });
     });
   };
 
@@ -543,17 +620,7 @@ export default function App() {
   const copyFullNames = (service) => {
     const sortedCands = candidates
       .filter(c => c.serviceTime === service)
-      .sort((a, b) => {
-        const lastA = (a.lastName || '').toLowerCase();
-        const lastB = (b.lastName || '').toLowerCase();
-        if (lastA < lastB) return -1;
-        if (lastA > lastB) return 1;
-        const firstA = (a.firstName || '').toLowerCase();
-        const firstB = (b.firstName || '').toLowerCase();
-        if (firstA < firstB) return -1;
-        if (firstA > firstB) return 1;
-        return 0;
-      });
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
     const namesText = sortedCands.map(c => c.fullName).join(', ');
     if (!namesText) {
       triggerToast('No names to copy!');
@@ -566,17 +633,7 @@ export default function App() {
   const copyFirstNames = (service) => {
     const sortedCands = candidates
       .filter(c => c.serviceTime === service)
-      .sort((a, b) => {
-        const lastA = (a.lastName || '').toLowerCase();
-        const lastB = (b.lastName || '').toLowerCase();
-        if (lastA < lastB) return -1;
-        if (lastA > lastB) return 1;
-        const firstA = (a.firstName || '').toLowerCase();
-        const firstB = (b.firstName || '').toLowerCase();
-        if (firstA < firstB) return -1;
-        if (firstA > firstB) return 1;
-        return 0;
-      });
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
     const namesText = sortedCands.map(c => c.firstName).join(', ');
     if (!namesText) {
       triggerToast('No names to copy!');
@@ -699,17 +756,7 @@ export default function App() {
                 ['9:00 AM', '11:15 AM', '4:00 PM'].map((group) => {
                   const groupCands = candidates
                     .filter(c => c.serviceTime === group)
-                    .sort((a, b) => {
-                      const lastA = (a.lastName || '').toLowerCase();
-                      const lastB = (b.lastName || '').toLowerCase();
-                      if (lastA < lastB) return -1;
-                      if (lastA > lastB) return 1;
-                      const firstA = (a.firstName || '').toLowerCase();
-                      const firstB = (b.firstName || '').toLowerCase();
-                      if (firstA < firstB) return -1;
-                      if (firstA > firstB) return 1;
-                      return 0;
-                    });
+                    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
                   if (groupCands.length === 0) return null;
                   
                   return (
@@ -768,6 +815,62 @@ export default function App() {
                           outline: 'none'
                         }}
                       />
+                      
+                      {/* Interactive Reordering List */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem', maxHeight: '150px', overflowY: 'auto', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '6px', padding: '0.25rem' }}>
+                        {groupCands.map((cand, candIdx) => (
+                          <div 
+                            key={cand.id} 
+                            style={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center', 
+                              background: 'rgba(255, 255, 255, 0.02)', 
+                              padding: '0.25rem 0.4rem', 
+                              borderRadius: '4px', 
+                              fontSize: '0.75rem' 
+                            }}
+                          >
+                            <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '170px', color: 'var(--text-secondary)' }}>
+                              {cand.fullName}
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                              <button 
+                                disabled={candIdx === 0} 
+                                onClick={() => handleMoveCandidate(cand.id, -1)}
+                                style={{ 
+                                  background: 'none', 
+                                  border: 'none', 
+                                  color: candIdx === 0 ? 'var(--text-secondary)' : 'var(--accent-teal)', 
+                                  cursor: candIdx === 0 ? 'default' : 'pointer', 
+                                  opacity: candIdx === 0 ? 0.35 : 1,
+                                  fontSize: '0.7rem',
+                                  padding: '2px'
+                                }}
+                                title="Move Up"
+                              >
+                                ▲
+                              </button>
+                              <button 
+                                disabled={candIdx === groupCands.length - 1} 
+                                onClick={() => handleMoveCandidate(cand.id, 1)}
+                                style={{ 
+                                  background: 'none', 
+                                  border: 'none', 
+                                  color: candIdx === groupCands.length - 1 ? 'var(--text-secondary)' : 'var(--accent-teal)', 
+                                  cursor: candIdx === groupCands.length - 1 ? 'default' : 'pointer', 
+                                  opacity: candIdx === groupCands.length - 1 ? 0.35 : 1,
+                                  fontSize: '0.7rem',
+                                  padding: '2px'
+                                }}
+                                title="Move Down"
+                              >
+                                ▼
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   );
                 })
