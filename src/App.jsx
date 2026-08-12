@@ -13,18 +13,39 @@ const BORDER_THICKNESS = 8;
 // Helper to parse filename formatting: e.g., "1 Catherine Plummer 9.png"
 const parseFilenamePattern = (filename) => {
   const base = filename.replace(/\.[^/.]+$/, '').trim();
-  const match = base.match(/^(\d+)[_\-\s]+(.+?)[_\-\s]+(\d+)$/);
+  const parts = base.split('_');
+  if (parts.length >= 3) {
+    // Find the part representing the service time (e.g., "900am", "1115am", "400pm")
+    const serviceIdx = parts.findIndex(p => /^\d+(am|pm)$/i.test(p));
+    if (serviceIdx !== -1 && serviceIdx >= 2) {
+      const nameParts = parts.slice(0, serviceIdx);
+      const lastName = nameParts[nameParts.length - 1].trim();
+      const firstName = nameParts.slice(0, nameParts.length - 1).join(' ').trim();
+      const serviceCode = parts[serviceIdx].toLowerCase();
+      
+      let serviceTime = '9:00 AM';
+      if (serviceCode.startsWith('9')) serviceTime = '9:00 AM';
+      else if (serviceCode.startsWith('11')) serviceTime = '11:15 AM';
+      else if (serviceCode.startsWith('4')) serviceTime = '4:00 PM';
+      
+      return { firstName, lastName, name: `${firstName} ${lastName}`, serviceTime };
+    }
+  }
+  // Fallback pattern matching
+  const match = base.match(/^(\d+)?[_\-\s]*(.+?)[_\-\s]*(\d+)?$/);
   if (match) {
-    const order = parseInt(match[1], 10);
-    const name = match[2].replace(/[_\-]+/g, ' ').trim();
-    const serviceCode = match[3];
+    const nameStr = match[2].replace(/[_\-]+/g, ' ').trim();
+    const nameParts = nameStr.split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    const serviceCode = match[3] || '9';
     
     let serviceTime = '9:00 AM';
     if (serviceCode === '9') serviceTime = '9:00 AM';
     else if (serviceCode === '11') serviceTime = '11:15 AM';
     else if (serviceCode === '4') serviceTime = '4:00 PM';
     
-    return { order, name, serviceTime };
+    return { firstName, lastName, name: nameStr, serviceTime };
   }
   return null;
 };
@@ -118,11 +139,17 @@ export default function App() {
     services.forEach((service) => {
       const filtered = [...candidateList.filter(c => c.serviceTime === service)];
       
-      // Sort candidates by order left-to-right (if specified in filename)
+      // Sort candidates alphabetically by last name per service
       filtered.sort((a, b) => {
-        const orderA = a.order !== undefined && a.order !== null ? a.order : 999;
-        const orderB = b.order !== undefined && b.order !== null ? b.order : 999;
-        return orderA - orderB;
+        const lastA = (a.lastName || '').toLowerCase();
+        const lastB = (b.lastName || '').toLowerCase();
+        if (lastA < lastB) return -1;
+        if (lastA > lastB) return 1;
+        const firstA = (a.firstName || '').toLowerCase();
+        const firstB = (b.firstName || '').toLowerCase();
+        if (firstA < firstB) return -1;
+        if (firstA > firstB) return 1;
+        return 0;
       });
 
       const N = filtered.length;
@@ -166,18 +193,32 @@ export default function App() {
   // Synchronize candidates list and slides with uploaded photos
   useEffect(() => {
     const newCandidates = photos.map((photo) => {
-      // Photo cleanName and parsed values are stored on photoObj during upload
-      const cleanName = photo.name.replace(/\.[^/.]+$/, '').replace(/^[0-9]+[_\-\s]+/, '').replace(/[_\-\s]+[0-9]+$/, '').replace(/[_\-]+/g, ' ').trim();
-      const first = cleanName.split(' ')[0] || '';
-      const last = cleanName.split(' ').slice(1).join(' ') || '';
+      let first = photo.firstName;
+      let last = photo.lastName;
+      let cleanName = photo.name.replace(/\.[^/.]+$/, '').replace(/[_\-]+/g, ' ').trim();
+      let service = photo.service || '9:00 AM';
+
+      if (!first && !last) {
+        const parsed = parseFilenamePattern(photo.name);
+        if (parsed) {
+          first = parsed.firstName;
+          last = parsed.lastName;
+          cleanName = parsed.name;
+          service = parsed.serviceTime;
+        } else {
+          const clean = photo.name.replace(/\.[^/.]+$/, '').replace(/^[0-9]+[_\-\s]+/, '').replace(/[_\-\s]+[0-9]+$/, '').replace(/[_\-]+/g, ' ').trim();
+          first = clean.split(' ')[0] || '';
+          last = clean.split(' ').slice(1).join(' ') || '';
+          cleanName = clean;
+        }
+      }
 
       return {
         id: photo.name,
         fullName: cleanName,
         firstName: first,
         lastName: last,
-        serviceTime: photo.service || '9:00 AM',
-        order: photo.order !== null ? photo.order : 999,
+        serviceTime: service,
         imageFile: photo,
         zoom: photo.zoom || 1,
         panX: photo.panX || 0,
@@ -220,9 +261,10 @@ export default function App() {
         const photoObj = {
           name: file.name,
           cleanName: parsedMeta ? parsedMeta.name.toLowerCase().replace(/[^a-z0-9]/g, '') : file.name.toLowerCase().replace(/\.[^/.]+$/, '').replace(/[^a-z0-9]/g, ''),
+          firstName: parsedMeta ? parsedMeta.firstName : '',
+          lastName: parsedMeta ? parsedMeta.lastName : '',
           url: url,
           _element: img,
-          order: parsedMeta ? parsedMeta.order : null,
           service: parsedMeta ? parsedMeta.serviceTime : null,
           zoom: 1,
           panX: 0,
@@ -246,15 +288,15 @@ export default function App() {
   // Load Mock / Sample Data for local previewing
   const handleLoadSamples = () => {
     const sampleFiles = [
-      { name: '1 Jane Smith 9.png', file: 'jane_smith.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '2 Mary Jones 9.png', file: 'mary_jones.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '3 John Smith 9.png', file: 'john_smith.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '1 Emily Davis 11.png', file: 'emily_davis.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '2 Michael Taylor 11.png', file: 'michael_taylor.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '1 Sarah Thomas 4.png', file: 'sarah_thomas.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '2 David Wilson 4.png', file: 'david_wilson.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '3 James Miller 4.png', file: 'james_miller.png', zoom: 1, panX: 0, panY: 0 },
-      { name: '4 Lisa Brown 4.png', file: 'lisa_brown.png', zoom: 1, panX: 0, panY: 0 }
+      { name: 'Jane_Smith_900am_20260816.png', file: 'Jane_Smith_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Mary_Jones_900am_20260816.png', file: 'Mary_Jones_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'John_Smith_900am_20260816.png', file: 'John_Smith_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Emily_Davis_1115am_20260816.png', file: 'Emily_Davis_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Michael_Taylor_1115am_20260816.png', file: 'Michael_Taylor_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Sarah_Thomas_400pm_20260816.png', file: 'Sarah_Thomas_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'David_Wilson_400pm_20260816.png', file: 'David_Wilson_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'James_Miller_400pm_20260816.png', file: 'James_Miller_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Lisa_Brown_400pm_20260816.png', file: 'Lisa_Brown_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 }
     ];
 
     let loadedCount = 0;
@@ -268,9 +310,10 @@ export default function App() {
         loadedPhotos.push({
           name: sample.name,
           cleanName: parsedMeta ? parsedMeta.name.toLowerCase().replace(/[^a-z0-9]/g, '') : sample.name.toLowerCase(),
+          firstName: parsedMeta ? parsedMeta.firstName : '',
+          lastName: parsedMeta ? parsedMeta.lastName : '',
           url: img.src,
           _element: img,
-          order: parsedMeta ? parsedMeta.order : null,
           service: parsedMeta ? parsedMeta.serviceTime : null,
           zoom: sample.zoom,
           panX: sample.panX,
@@ -498,15 +541,50 @@ export default function App() {
 
 
 
-  const copyRosterToClipboard = (service) => {
-    const serviceCands = candidates.filter(c => c.serviceTime === service);
-    const namesText = serviceCands.map(c => c.fullName).join('\n');
+  const copyFullNames = (service) => {
+    const sortedCands = candidates
+      .filter(c => c.serviceTime === service)
+      .sort((a, b) => {
+        const lastA = (a.lastName || '').toLowerCase();
+        const lastB = (b.lastName || '').toLowerCase();
+        if (lastA < lastB) return -1;
+        if (lastA > lastB) return 1;
+        const firstA = (a.firstName || '').toLowerCase();
+        const firstB = (b.firstName || '').toLowerCase();
+        if (firstA < firstB) return -1;
+        if (firstA > firstB) return 1;
+        return 0;
+      });
+    const namesText = sortedCands.map(c => c.fullName).join(', ');
     if (!namesText) {
       triggerToast('No names to copy!');
       return;
     }
     navigator.clipboard.writeText(namesText);
-    triggerToast(`Copied ${service} roster to clipboard!`);
+    triggerToast(`Copied ${service} full names to clipboard!`);
+  };
+
+  const copyFirstNames = (service) => {
+    const sortedCands = candidates
+      .filter(c => c.serviceTime === service)
+      .sort((a, b) => {
+        const lastA = (a.lastName || '').toLowerCase();
+        const lastB = (b.lastName || '').toLowerCase();
+        if (lastA < lastB) return -1;
+        if (lastA > lastB) return 1;
+        const firstA = (a.firstName || '').toLowerCase();
+        const firstB = (b.firstName || '').toLowerCase();
+        if (firstA < firstB) return -1;
+        if (firstA > firstB) return 1;
+        return 0;
+      });
+    const namesText = sortedCands.map(c => c.firstName).join(', ');
+    if (!namesText) {
+      triggerToast('No names to copy!');
+      return;
+    }
+    navigator.clipboard.writeText(namesText);
+    triggerToast(`Copied ${service} first names to clipboard!`);
   };
 
   // Reset all state
@@ -616,7 +694,19 @@ export default function App() {
                 </div>
               ) : (
                 ['9:00 AM', '11:15 AM', '4:00 PM'].map((group) => {
-                  const groupCands = candidates.filter(c => c.serviceTime === group);
+                  const groupCands = candidates
+                    .filter(c => c.serviceTime === group)
+                    .sort((a, b) => {
+                      const lastA = (a.lastName || '').toLowerCase();
+                      const lastB = (b.lastName || '').toLowerCase();
+                      if (lastA < lastB) return -1;
+                      if (lastA > lastB) return 1;
+                      const firstA = (a.firstName || '').toLowerCase();
+                      const firstB = (b.firstName || '').toLowerCase();
+                      if (firstA < firstB) return -1;
+                      if (firstA > firstB) return 1;
+                      return 0;
+                    });
                   if (groupCands.length === 0) return null;
                   
                   return (
@@ -625,25 +715,42 @@ export default function App() {
                         <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-teal)' }}>
                           {group} Service ({groupCands.length})
                         </span>
-                        <button
-                          onClick={() => copyRosterToClipboard(group)}
-                          style={{
-                            background: 'rgba(0, 242, 254, 0.1)',
-                            border: '1px solid rgba(0, 242, 254, 0.3)',
-                            borderRadius: '4px',
-                            color: 'var(--accent-teal)',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            padding: '0.15rem 0.4rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Copy
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.3rem' }}>
+                          <button
+                            onClick={() => copyFullNames(group)}
+                            style={{
+                              background: 'rgba(0, 242, 254, 0.08)',
+                              border: '1px solid rgba(0, 242, 254, 0.25)',
+                              borderRadius: '4px',
+                              color: 'var(--accent-teal)',
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              padding: '0.15rem 0.35rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Copy Full Names
+                          </button>
+                          <button
+                            onClick={() => copyFirstNames(group)}
+                            style={{
+                              background: 'rgba(0, 242, 254, 0.08)',
+                              border: '1px solid rgba(0, 242, 254, 0.25)',
+                              borderRadius: '4px',
+                              color: 'var(--accent-teal)',
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              padding: '0.15rem 0.35rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Copy First Names
+                          </button>
+                        </div>
                       </div>
                       <textarea
                         readOnly
-                        value={groupCands.map(c => c.fullName).join('\n')}
+                        value={groupCands.map(c => c.fullName).join(', ')}
                         style={{
                           width: '100%',
                           height: '80px',
