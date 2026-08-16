@@ -7,6 +7,11 @@ const TEXT_COLOR = '#003A5D';
 const BORDER_COLOR = '#FFFFFF';
 const BORDER_THICKNESS = 8;
 
+const toTitleCase = (str) => {
+  if (!str) return '';
+  return str.split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+};
+
 export default function PhotoCropper({
   slide,
   personIdx,
@@ -194,10 +199,10 @@ export default function PhotoCropper({
       ctx.fillStyle = TEXT_COLOR;
 
       ctx.font = '700 60px Lato, sans-serif';
-      ctx.fillText((p.firstName || '').toUpperCase(), textX, 910);
+      ctx.fillText(toTitleCase(p.firstName), textX, 910);
 
       ctx.font = '300 60px Lato, sans-serif';
-      ctx.fillText(p.lastName || '', textX, 980);
+      ctx.fillText(toTitleCase(p.lastName), textX, 980);
 
       // Dim other slots to highlight the editing one
       if (!isCurrent) {

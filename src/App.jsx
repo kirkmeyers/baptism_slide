@@ -10,6 +10,11 @@ const TEXT_COLOR = '#003A5D';
 const BORDER_COLOR = '#FFFFFF';
 const BORDER_THICKNESS = 8;
 
+const toTitleCase = (str) => {
+  if (!str) return '';
+  return str.split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+};
+
 // Helper to parse filename formatting: e.g., "1 Catherine Plummer 9.png"
 const parseFilenamePattern = (filename) => {
   const base = filename.replace(/\.[^/.]+$/, '').trim();
@@ -579,11 +584,11 @@ export default function App() {
 
         // First Name Bold
         ctx.font = '700 60px Lato, sans-serif';
-        ctx.fillText((person.firstName || '').toUpperCase(), textX, 910);
+        ctx.fillText(toTitleCase(person.firstName), textX, 910);
 
         // Last Name Light
         ctx.font = '300 60px Lato, sans-serif';
-        ctx.fillText(person.lastName || '', textX, 980);
+        ctx.fillText(toTitleCase(person.lastName), textX, 980);
       }
 
       // Convert canvas to Blob

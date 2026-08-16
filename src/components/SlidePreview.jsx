@@ -7,6 +7,11 @@ const TEXT_COLOR = '#003A5D';
 const BORDER_COLOR = '#FFFFFF';
 const BORDER_THICKNESS = 8;
 
+const toTitleCase = (str) => {
+  if (!str) return '';
+  return str.split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+};
+
 // Layout definitions for 1920x1080
 export const LAYOUTS = {
   1: [
@@ -157,12 +162,12 @@ export default function SlidePreview({
       ctx.fillStyle = TEXT_COLOR;
       // Adjust spacing depending on how many people are in the slide
       const firstNameY = 910;
-      ctx.fillText((person.firstName || '').toUpperCase(), textX, firstNameY);
+      ctx.fillText(toTitleCase(person.firstName), textX, firstNameY);
 
       // Draw Last Name (Lato Light)
       ctx.font = '300 60px Lato, sans-serif';
       const lastNameY = 980;
-      ctx.fillText(person.lastName || '', textX, lastNameY);
+      ctx.fillText(toTitleCase(person.lastName), textX, lastNameY);
     });
 
   }, [people, layout, templateImageLoaded, templateImgElement]);
