@@ -64,6 +64,13 @@ export default function PhotoCropper({
   // Track the active editing person index in local state
   const [activeIdx, setActiveIdx] = useState(personIdx);
 
+  const activeBox = layout[activeIdx];
+  const viewportW = isLED ? 1650 : 1920;
+  const viewportH = isLED ? 1650 : 1080;
+  const viewportLeft = isLED && activeBox
+    ? Math.max(0, Math.min(6270, (activeBox.x + activeBox.size / 2) - 1650 / 2))
+    : 0;
+
   // Get bounds for panning coordinates to prevent showing empty edges
   const getPanLimits = (idx, zoomVal) => {
     const b = layout[idx];
@@ -143,7 +150,6 @@ export default function PhotoCropper({
   const initialPan = useRef({ x: 0, y: 0 });
 
   const activePerson = people[activeIdx];
-  const activeBox = layout[activeIdx];
   const activeDraft = draftPeople[activeIdx] || { zoom: 1, panX: 0, panY: 0 };
   const limits = getPanLimits(activeIdx, activeDraft.zoom);
 
@@ -163,8 +169,11 @@ export default function PhotoCropper({
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
-    // Clear
-    ctx.clearRect(0, 0, canvasW, canvasH);
+    // Clear viewport area
+    ctx.clearRect(0, 0, viewportW, viewportH);
+
+    ctx.save();
+    ctx.translate(-viewportLeft, 0);
 
     // 1. Draw template (Option 1 only: Option 2 is transparent)
     if (!isLED) {
@@ -275,15 +284,17 @@ export default function PhotoCropper({
     ctx.strokeStyle = '#00F2FE';
     ctx.strokeRect(activeBox.x - 3, activeBox.y - 3, activeBox.size + 6, activeBox.size + 6);
 
-  }, [people, activeIdx, draftPeople, templateImgElement, activeBox, isLED, canvasW, canvasH]);
+    ctx.restore();
+
+  }, [people, activeIdx, draftPeople, templateImgElement, activeBox, isLED, canvasW, canvasH, viewportLeft, viewportW, viewportH]);
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
     if (!canvas || !activeBox) return;
 
     const rect = canvas.getBoundingClientRect();
-    const clickX = ((e.clientX - rect.left) / rect.width) * canvasW;
-    const clickY = ((e.clientY - rect.top) / rect.height) * canvasH;
+    const clickX = ((e.clientX - rect.left) / rect.width) * viewportW + viewportLeft;
+    const clickY = ((e.clientY - rect.top) / rect.height) * viewportH;
 
     // Check if the user clicked on any OTHER photo slot to switch focus
     let clickedOtherIdx = -1;
@@ -321,9 +332,9 @@ export default function PhotoCropper({
     const dx = e.clientX - dragStart.current.x;
     const dy = e.clientY - dragStart.current.y;
 
-    // Scale canvas movement to match current resolution
-    const scaleX = canvasW / rect.width;
-    const scaleY = canvasH / rect.height;
+    // Scale canvas movement to match current viewport resolution
+    const scaleX = viewportW / rect.width;
+    const scaleY = viewportH / rect.height;
 
     const rawPanX = initialPan.current.x + dx * scaleX;
     const rawPanY = initialPan.current.y + dy * scaleY;
@@ -350,7 +361,7 @@ export default function PhotoCropper({
 
   return (
     <div className="modal-overlay" onMouseUp={handleMouseUp}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: isLED ? '1200px' : '960px' }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: isLED ? '750px' : '960px' }}>
         <button className="modal-close-btn" onClick={onClose}>&times;</button>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
           Adjust Crop & Positioning: {activePerson?.fullName}
@@ -358,8 +369,8 @@ export default function PhotoCropper({
 
         <div className="cropper-container">
           {/* Visual Workspace Canvas */}
-          <div className="cropper-canvas-wrapper" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} style={{ aspectRatio: isLED ? '7920/1650' : '16/9', background: isLED ? '#FFFFFF' : '#111827' }}>
-            <canvas ref={canvasRef} width={canvasW} height={canvasH} />
+          <div className="cropper-canvas-wrapper" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} style={{ aspectRatio: `${viewportW}/${viewportH}`, background: isLED ? '#FFFFFF' : '#111827' }}>
+            <canvas ref={canvasRef} width={viewportW} height={viewportH} />
             <div className="cropper-drag-hint">
               <span style={{ color: 'var(--accent-teal)', fontWeight: 'bold' }}>Drag on the photo</span> to pan • <span style={{ color: 'var(--accent-teal)', fontWeight: 'bold' }}>Click other photos</span> to switch focus
             </div>
