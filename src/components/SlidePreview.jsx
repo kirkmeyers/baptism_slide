@@ -70,8 +70,7 @@ export default function SlidePreview({
     const startX = (7920 - totalWidth) / 2;
     const textHeight = 155;
     const spacing = 40;
-    const totalHeight = size + spacing + textHeight;
-    const yStart = (1650 - totalHeight) / 2;
+    const yStart = 375;
     
     const layoutArray = [];
     for (let i = 0; i < num; i++) {
@@ -198,12 +197,12 @@ export default function SlidePreview({
       ctx.fillStyle = TEXT_COLOR;
 
       if (isLED) {
-        const fontSize = Math.min(50, Math.round(size * 0.15));
+        const fontSize = Math.min(55, Math.round(size * 0.165));
         ctx.font = `700 ${fontSize}px Lato, sans-serif`;
-        ctx.fillText(toTitleCase(person.firstName), textX, y + size + 70);
+        ctx.fillText(toTitleCase(person.firstName), textX, y + size + 75);
 
         ctx.font = `300 ${fontSize}px Lato, sans-serif`;
-        ctx.fillText(toTitleCase(person.lastName), textX, y + size + 130);
+        ctx.fillText(toTitleCase(person.lastName), textX, y + size + 140);
       } else {
         // Draw First Name (Lato Bold)
         ctx.font = '700 60px Lato, sans-serif';
