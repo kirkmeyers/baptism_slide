@@ -65,10 +65,13 @@ export default function PhotoCropper({
   const [activeIdx, setActiveIdx] = useState(personIdx);
 
   const activeBox = layout[activeIdx];
-  const viewportW = isLED ? 1650 : 1920;
-  const viewportH = isLED ? 1650 : 1080;
+  const viewportW = isLED ? 800 : 1920;
+  const viewportH = isLED ? 800 : 1080;
   const viewportLeft = isLED && activeBox
-    ? Math.max(0, Math.min(6270, (activeBox.x + activeBox.size / 2) - 1650 / 2))
+    ? Math.max(0, Math.min(7120, (activeBox.x + activeBox.size / 2) - 800 / 2))
+    : 0;
+  const viewportTop = isLED && activeBox
+    ? Math.max(0, Math.min(850, (activeBox.y + activeBox.size / 2) - 800 / 2))
     : 0;
 
   // Get bounds for panning coordinates to prevent showing empty edges
@@ -173,7 +176,7 @@ export default function PhotoCropper({
     ctx.clearRect(0, 0, viewportW, viewportH);
 
     ctx.save();
-    ctx.translate(-viewportLeft, 0);
+    ctx.translate(-viewportLeft, -viewportTop);
 
     // 1. Draw template (Option 1 only: Option 2 is transparent)
     if (!isLED) {
@@ -286,7 +289,7 @@ export default function PhotoCropper({
 
     ctx.restore();
 
-  }, [people, activeIdx, draftPeople, templateImgElement, activeBox, isLED, canvasW, canvasH, viewportLeft, viewportW, viewportH]);
+  }, [people, activeIdx, draftPeople, templateImgElement, activeBox, isLED, canvasW, canvasH, viewportLeft, viewportTop, viewportW, viewportH]);
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
@@ -294,7 +297,7 @@ export default function PhotoCropper({
 
     const rect = canvas.getBoundingClientRect();
     const clickX = ((e.clientX - rect.left) / rect.width) * viewportW + viewportLeft;
-    const clickY = ((e.clientY - rect.top) / rect.height) * viewportH;
+    const clickY = ((e.clientY - rect.top) / rect.height) * viewportH + viewportTop;
 
     // Check if the user clicked on any OTHER photo slot to switch focus
     let clickedOtherIdx = -1;
