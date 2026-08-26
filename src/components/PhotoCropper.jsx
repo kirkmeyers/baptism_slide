@@ -29,19 +29,26 @@ export default function PhotoCropper({
 
   const getLEDLayout = (num) => {
     if (num === 0) return [];
-    const layoutArray = [];
-    const slotWidth = 7920 / num;
-    const gap = 80;
-    const maxBoxSize = 390;
-    const size = Math.min(maxBoxSize, slotWidth - gap);
+    let size = 390;
+    let gap = 60;
+    let totalWidth = num * size + (num - 1) * gap;
+
+    if (totalWidth > 7920) {
+      const scale = 7920 / totalWidth;
+      size = Math.floor(390 * scale);
+      gap = Math.floor(60 * scale);
+      totalWidth = num * size + (num - 1) * gap;
+    }
+
+    const startX = (7920 - totalWidth) / 2;
     const textHeight = 155;
     const spacing = 40;
     const totalHeight = size + spacing + textHeight;
     const yStart = (1650 - totalHeight) / 2;
     
+    const layoutArray = [];
     for (let i = 0; i < num; i++) {
-      const slotX = i * slotWidth;
-      const x = slotX + (slotWidth - size) / 2;
+      const x = startX + i * (size + gap);
       layoutArray.push({ x, y: yStart, size });
     }
     return layoutArray;
