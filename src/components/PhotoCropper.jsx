@@ -17,11 +17,43 @@ export default function PhotoCropper({
   personIdx,
   onUpdateCrop,
   onClose,
-  templateImgElement
+  templateImgElement,
+  outputMode = '1920x1080'
 }) {
   const canvasRef = useRef(null);
   const people = slide.people || [];
-  const layout = LAYOUTS[people.length] || [];
+  
+  const isLED = outputMode === '7920x1650';
+  const canvasW = isLED ? 7920 : 1920;
+  const canvasH = isLED ? 1650 : 1080;
+
+  const getLEDLayout = (num) => {
+    if (num === 0) return [];
+    const layoutArray = [];
+    const slotWidth = 7920 / num;
+    const gap = 80;
+    const maxBoxSize = 850;
+    const size = Math.min(maxBoxSize, slotWidth - gap);
+    const textHeight = Math.max(30, Math.min(55, size * 0.065)) * 3.5;
+    const spacing = 80;
+    const totalHeight = size + spacing + textHeight;
+    const yStart = (1650 - totalHeight) / 2;
+    
+    for (let i = 0; i < num; i++) {
+      const slotX = i * slotWidth;
+      const x = slotX + (slotWidth - size) / 2;
+      layoutArray.push({ x, y: yStart, size });
+    }
+    return layoutArray;
+  };
+
+  const layout = isLED ? getLEDLayout(people.length) : (LAYOUTS[people.length] || []);
+
+  const getBorderThick = (idx) => {
+    const b = layout[idx];
+    if (!b) return BORDER_THICKNESS;
+    return isLED ? Math.max(8, Math.round(b.size * 0.02)) : BORDER_THICKNESS;
+  };
 
   // Track the active editing person index in local state
   const [activeIdx, setActiveIdx] = useState(personIdx);
@@ -33,7 +65,8 @@ export default function PhotoCropper({
     if (!b || !p || !p.imageFile) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
     const size = b.size;
-    const innerSize = size - 2 * BORDER_THICKNESS;
+    const borderThick = getBorderThick(idx);
+    const innerSize = size - 2 * borderThick;
     const img = p.imageFile._element;
     if (!img) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
@@ -70,7 +103,8 @@ export default function PhotoCropper({
       const b = layout[idx];
       if (b && p.imageFile && p.imageFile._element) {
         const size = b.size;
-        const innerSize = size - 2 * BORDER_THICKNESS;
+        const borderThick = getBorderThick(idx);
+        const innerSize = size - 2 * borderThick;
         const img = p.imageFile._element;
         const imgW = img.width;
         const imgH = img.height;
@@ -124,16 +158,21 @@ export default function PhotoCropper({
     ctx.imageSmoothingQuality = 'high';
 
     // Clear
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.clearRect(0, 0, canvasW, canvasH);
 
     // 1. Draw template
-    if (templateImgElement) {
-      ctx.drawImage(templateImgElement, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    if (isLED) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvasW, canvasH);
     } else {
-      ctx.fillStyle = '#F4F2EF';
-      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-      ctx.fillStyle = '#B9D2DC';
-      ctx.fillRect(0, 750, CANVAS_WIDTH, 330);
+      if (templateImgElement) {
+        ctx.drawImage(templateImgElement, 0, 0, canvasW, canvasH);
+      } else {
+        ctx.fillStyle = '#F4F2EF';
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        ctx.fillStyle = '#B9D2DC';
+        ctx.fillRect(0, 750, canvasW, 330);
+      }
     }
 
     // 2. Draw all people on this slide using their current draft crops
@@ -143,9 +182,10 @@ export default function PhotoCropper({
 
       const isCurrent = idx === activeIdx;
       const { x, y, size } = b;
-      const innerX = x + BORDER_THICKNESS;
-      const innerY = y + BORDER_THICKNESS;
-      const innerSize = size - 2 * BORDER_THICKNESS;
+      const borderThick = getBorderThick(idx);
+      const innerX = x + borderThick;
+      const innerY = y + borderThick;
+      const innerSize = size - 2 * borderThick;
 
       if (p.imageFile) {
         ctx.save();
@@ -189,20 +229,36 @@ export default function PhotoCropper({
       }
 
       // Border
-      ctx.lineWidth = BORDER_THICKNESS;
+      ctx.lineWidth = borderThick;
       ctx.strokeStyle = BORDER_COLOR;
-      ctx.strokeRect(x + BORDER_THICKNESS / 2, y + BORDER_THICKNESS / 2, size - BORDER_THICKNESS, size - BORDER_THICKNESS);
+      ctx.strokeRect(x + borderThick / 2, y + borderThick / 2, size - borderThick, size - borderThick);
+
+      // Draw thin outer gray outline for LED mode
+      if (isLED) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#E2E8F0';
+        ctx.strokeRect(x, y, size, size);
+      }
 
       // Names
       ctx.textAlign = 'center';
       const textX = x + size / 2;
       ctx.fillStyle = TEXT_COLOR;
 
-      ctx.font = '700 60px Lato, sans-serif';
-      ctx.fillText(toTitleCase(p.firstName), textX, 910);
+      if (isLED) {
+        const fontSize = Math.round(size * 0.065);
+        ctx.font = `700 ${fontSize}px Lato, sans-serif`;
+        ctx.fillText(toTitleCase(p.firstName), textX, y + size + fontSize * 1.6);
 
-      ctx.font = '300 60px Lato, sans-serif';
-      ctx.fillText(toTitleCase(p.lastName), textX, 980);
+        ctx.font = `300 ${fontSize}px Lato, sans-serif`;
+        ctx.fillText(toTitleCase(p.lastName), textX, y + size + fontSize * 2.8);
+      } else {
+        ctx.font = '700 60px Lato, sans-serif';
+        ctx.fillText(toTitleCase(p.firstName), textX, 910);
+
+        ctx.font = '300 60px Lato, sans-serif';
+        ctx.fillText(toTitleCase(p.lastName), textX, 980);
+      }
 
       // Dim other slots to highlight the editing one
       if (!isCurrent) {
@@ -216,15 +272,15 @@ export default function PhotoCropper({
     ctx.strokeStyle = '#00F2FE';
     ctx.strokeRect(activeBox.x - 3, activeBox.y - 3, activeBox.size + 6, activeBox.size + 6);
 
-  }, [people, activeIdx, draftPeople, templateImgElement, activeBox]);
+  }, [people, activeIdx, draftPeople, templateImgElement, activeBox, isLED, canvasW, canvasH]);
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
     if (!canvas || !activeBox) return;
 
     const rect = canvas.getBoundingClientRect();
-    const clickX = ((e.clientX - rect.left) / rect.width) * CANVAS_WIDTH;
-    const clickY = ((e.clientY - rect.top) / rect.height) * CANVAS_HEIGHT;
+    const clickX = ((e.clientX - rect.left) / rect.width) * canvasW;
+    const clickY = ((e.clientY - rect.top) / rect.height) * canvasH;
 
     // Check if the user clicked on any OTHER photo slot to switch focus
     let clickedOtherIdx = -1;
@@ -262,9 +318,9 @@ export default function PhotoCropper({
     const dx = e.clientX - dragStart.current.x;
     const dy = e.clientY - dragStart.current.y;
 
-    // Scale canvas movement to match 1920x1080 resolution
-    const scaleX = CANVAS_WIDTH / rect.width;
-    const scaleY = CANVAS_HEIGHT / rect.height;
+    // Scale canvas movement to match current resolution
+    const scaleX = canvasW / rect.width;
+    const scaleY = canvasH / rect.height;
 
     const rawPanX = initialPan.current.x + dx * scaleX;
     const rawPanY = initialPan.current.y + dy * scaleY;
@@ -291,7 +347,7 @@ export default function PhotoCropper({
 
   return (
     <div className="modal-overlay" onMouseUp={handleMouseUp}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: isLED ? '1200px' : '960px' }}>
         <button className="modal-close-btn" onClick={onClose}>&times;</button>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
           Adjust Crop & Positioning: {activePerson?.fullName}
@@ -299,8 +355,8 @@ export default function PhotoCropper({
 
         <div className="cropper-container">
           {/* Visual Workspace Canvas */}
-          <div className="cropper-canvas-wrapper" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}>
-            <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
+          <div className="cropper-canvas-wrapper" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} style={{ aspectRatio: isLED ? '7920/1650' : '16/9' }}>
+            <canvas ref={canvasRef} width={canvasW} height={canvasH} />
             <div className="cropper-drag-hint">
               <span style={{ color: 'var(--accent-teal)', fontWeight: 'bold' }}>Drag on the photo</span> to pan • <span style={{ color: 'var(--accent-teal)', fontWeight: 'bold' }}>Click other photos</span> to switch focus
             </div>

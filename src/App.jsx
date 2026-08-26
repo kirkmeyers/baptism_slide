@@ -60,6 +60,7 @@ export default function App() {
   const [photos, setPhotos] = useState([]);
   const [activeTab, setActiveTab] = useState('9:00 AM'); // '9:00 AM', '11:15 AM', or '4:00 PM'
   const [peoplePerSlide, setPeoplePerSlide] = useState('auto'); // default auto-balance
+  const [outputMode, setOutputMode] = useState('1920x1080'); // '1920x1080' or '7920x1650'
   
   // Slide grouping state: { '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] }
   const [slides, setSlides] = useState({ '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] });
@@ -137,7 +138,7 @@ export default function App() {
   };
 
   // Re-layouts all candidates into slides based on current chunk size
-  const autoLayoutCandidates = (candidateList, perSlide) => {
+  const autoLayoutCandidates = (candidateList, perSlide, forceMode = outputMode) => {
     const services = ['9:00 AM', '11:15 AM', '4:00 PM'];
     const newSlides = { '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] };
 
@@ -152,34 +153,42 @@ export default function App() {
       const N = filtered.length;
       if (N === 0) return;
 
-      if (perSlide === 'auto') {
-        // Auto-Balance strategy:
-        // - N <= 4: 1 slide of size N
-        // - 4 < N <= 8: 2 slides of size N/2 balanced
-        // - N > 8: math.ceil(N/4) slides of size N/S balanced
-        const S = Math.ceil(N / 4);
-        const base = Math.floor(N / S);
-        const rem = N % S;
-        let currentIndex = 0;
-        
-        for (let s = 0; s < S; s++) {
-          const size = s < rem ? base + 1 : base;
-          const chunk = filtered.slice(currentIndex, currentIndex + size);
-          currentIndex += size;
-          newSlides[service].push({
-            id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${s}`,
-            people: chunk
-          });
-        }
+      if (forceMode === '7920x1650') {
+        // LED Strip Mode: All candidates of this service on exactly 1 widescreen slide
+        newSlides[service].push({
+          id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_led`,
+          people: filtered
+        });
       } else {
-        // Numeric per-slide strategy (K per slide)
-        const K = parseInt(perSlide, 10) || 2;
-        for (let i = 0; i < N; i += K) {
-          const chunk = filtered.slice(i, i + K);
-          newSlides[service].push({
-            id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${i / K}`,
-            people: chunk
-          });
+        if (perSlide === 'auto') {
+          // Auto-Balance strategy:
+          // - N <= 4: 1 slide of size N
+          // - 4 < N <= 8: 2 slides of size N/2 balanced
+          // - N > 8: math.ceil(N/4) slides of size N/S balanced
+          const S = Math.ceil(N / 4);
+          const base = Math.floor(N / S);
+          const rem = N % S;
+          let currentIndex = 0;
+          
+          for (let s = 0; s < S; s++) {
+            const size = s < rem ? base + 1 : base;
+            const chunk = filtered.slice(currentIndex, currentIndex + size);
+            currentIndex += size;
+            newSlides[service].push({
+              id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${s}`,
+              people: chunk
+            });
+          }
+        } else {
+          // Numeric per-slide strategy (K per slide)
+          const K = parseInt(perSlide, 10) || 2;
+          for (let i = 0; i < N; i += K) {
+            const chunk = filtered.slice(i, i + K);
+            newSlides[service].push({
+              id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${i / K}`,
+              people: chunk
+            });
+          }
         }
       }
     });
@@ -275,8 +284,8 @@ export default function App() {
     });
 
     setCandidates(newCandidates);
-    autoLayoutCandidates(newCandidates, peoplePerSlide);
-  }, [photos, peoplePerSlide]);
+    autoLayoutCandidates(newCandidates, peoplePerSlide, outputMode);
+  }, [photos, peoplePerSlide, outputMode]);
 
   // Handle Photo files upload
   const handlePhotoUpload = (e) => {
@@ -490,38 +499,68 @@ export default function App() {
   // Export current service slides to ZIP
   // Export current service slides as raw PNG files (individual downloads)
   const handleExportSlides = async () => {
-    const activeSlides = slides[activeTab];
+    const activeSlides = slides[activeTab] || [];
     if (activeSlides.length === 0) {
-      triggerToast('No slides to export!');
+      triggerToast('No slides to export.');
       return;
     }
 
-    // Create an offscreen canvas to render high-res images
+    const isLED = outputMode === '7920x1650';
+    const exportW = isLED ? 7920 : 1920;
+    const exportH = isLED ? 1650 : 1080;
+
     const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = 1920;
-    exportCanvas.height = 1080;
+    exportCanvas.width = exportW;
+    exportCanvas.height = exportH;
     const ctx = exportCanvas.getContext('2d');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
     triggerToast('Generating and downloading graphics... please wait.');
 
+    const getLEDLayout = (N) => {
+      if (N === 0) return [];
+      const layoutArray = [];
+      const slotWidth = 7920 / N;
+      const gap = 80;
+      const maxBoxSize = 850;
+      const size = Math.min(maxBoxSize, slotWidth - gap);
+      const textHeight = Math.max(30, Math.min(55, size * 0.065)) * 3.5;
+      const spacing = 80;
+      const totalHeight = size + spacing + textHeight;
+      const yStart = (1650 - totalHeight) / 2;
+      
+      for (let i = 0; i < N; i++) {
+        const slotX = i * slotWidth;
+        const x = slotX + (slotWidth - size) / 2;
+        layoutArray.push({ x, y: yStart, size });
+      }
+      return layoutArray;
+    };
+
     let index = 1;
     for (const slide of activeSlides) {
       // Clear
-      ctx.clearRect(0, 0, 1920, 1080);
+      ctx.clearRect(0, 0, exportW, exportH);
       
       // Draw background
-      if (templateLoaded && templateImgEl) {
-        ctx.drawImage(templateImgEl, 0, 0, 1920, 1080);
+      if (isLED) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, exportW, exportH);
       } else {
-        ctx.fillStyle = '#F4F2EF';
-        ctx.fillRect(0, 0, 1920, 1080);
+        if (templateLoaded && templateImgEl) {
+          ctx.drawImage(templateImgEl, 0, 0, exportW, exportH);
+        } else {
+          ctx.fillStyle = '#F4F2EF';
+          ctx.fillRect(0, 0, exportW, exportH);
+          ctx.fillStyle = '#B9D2DC';
+          ctx.fillRect(0, 750, exportW, 330);
+        }
       }
 
       // Draw people
       const N = slide.people.length;
-      const layout = LAYOUTS[N] || [];
+      const layout = isLED ? getLEDLayout(N) : (LAYOUTS[N] || []);
 
       for (let i = 0; i < N; i++) {
         const person = slide.people[i];
@@ -529,9 +568,10 @@ export default function App() {
         if (!box) continue;
 
         const { x, y, size } = box;
-        const innerX = x + BORDER_THICKNESS;
-        const innerY = y + BORDER_THICKNESS;
-        const innerSize = size - 2 * BORDER_THICKNESS;
+        const borderThick = isLED ? Math.max(8, Math.round(size * 0.02)) : BORDER_THICKNESS;
+        const innerX = x + borderThick;
+        const innerY = y + borderThick;
+        const innerSize = size - 2 * borderThick;
 
         if (person.imageFile) {
           ctx.save();
@@ -567,28 +607,41 @@ export default function App() {
           }
           ctx.restore();
         } else {
-          // Drawing light gray placeholder for empty photos on export
           ctx.fillStyle = '#E2E8F0';
           ctx.fillRect(innerX, innerY, innerSize, innerSize);
         }
 
         // Draw white border
-        ctx.lineWidth = BORDER_THICKNESS;
+        ctx.lineWidth = borderThick;
         ctx.strokeStyle = BORDER_COLOR;
-        ctx.strokeRect(x + BORDER_THICKNESS/2, y + BORDER_THICKNESS/2, size - BORDER_THICKNESS, size - BORDER_THICKNESS);
+        ctx.strokeRect(x + borderThick/2, y + borderThick/2, size - borderThick, size - borderThick);
+
+        // Thin outer gray outline for LED mode
+        if (isLED) {
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#E2E8F0';
+          ctx.strokeRect(x, y, size, size);
+        }
 
         // Draw names
         ctx.textAlign = 'center';
         const textX = x + size / 2;
         ctx.fillStyle = TEXT_COLOR;
 
-        // First Name Bold
-        ctx.font = '700 60px Lato, sans-serif';
-        ctx.fillText(toTitleCase(person.firstName), textX, 910);
+        if (isLED) {
+          const fontSize = Math.round(size * 0.065);
+          ctx.font = `700 ${fontSize}px Lato, sans-serif`;
+          ctx.fillText(toTitleCase(person.firstName), textX, y + size + fontSize * 1.6);
 
-        // Last Name Light
-        ctx.font = '300 60px Lato, sans-serif';
-        ctx.fillText(toTitleCase(person.lastName), textX, 980);
+          ctx.font = `300 ${fontSize}px Lato, sans-serif`;
+          ctx.fillText(toTitleCase(person.lastName), textX, y + size + fontSize * 2.8);
+        } else {
+          ctx.font = '700 60px Lato, sans-serif';
+          ctx.fillText(toTitleCase(person.firstName), textX, 910);
+
+          ctx.font = '300 60px Lato, sans-serif';
+          ctx.fillText(toTitleCase(person.lastName), textX, 980);
+        }
       }
 
       // Convert canvas to Blob
@@ -597,7 +650,9 @@ export default function App() {
       });
 
       // Download directly as PNG
-      const filename = `${activeTab.replace(/[^a-z0-9]/gi, '')}_slide_${index.toString().padStart(2, '0')}.png`;
+      const filename = isLED 
+        ? `${activeTab.replace(/[^a-z0-9]/gi, '')}_led_strip.png`
+        : `${activeTab.replace(/[^a-z0-9]/gi, '')}_slide_${index.toString().padStart(2, '0')}.png`;
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -606,7 +661,6 @@ export default function App() {
       URL.revokeObjectURL(downloadUrl);
 
       index++;
-      // A small delay to prevent browsers from blocking rapid multiple file downloads
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
@@ -915,29 +969,49 @@ export default function App() {
             {/* Slide settings and bulk actions */}
             <div className="controls-panel">
               <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
-                Default Layout:
+                Display Mode:
                 <select
-                  value={peoplePerSlide}
-                  onChange={handleLayoutChange}
-                  style={{ marginLeft: '0.5rem' }}
+                  value={outputMode}
+                  onChange={(e) => {
+                    const newMode = e.target.value;
+                    setOutputMode(newMode);
+                    triggerToast(newMode === '7920x1650' ? 'Switched to 7920x1650 LED Strip Mode' : 'Switched to 1920x1080 slide mode');
+                  }}
+                  style={{ marginLeft: '0.5rem', marginRight: '1.25rem' }}
                 >
-                  <option value="auto">Auto-Balance (Recommended)</option>
-                  <option value="1">1 Candidate / Slide</option>
-                  <option value="2">2 Candidates / Slide</option>
-                  <option value="3">3 Candidates / Slide</option>
-                  <option value="4">4 Candidates / Slide</option>
+                  <option value="1920x1080">Option 1: 1920x1080 Slide Show</option>
+                  <option value="7920x1650">Option 2: 7920x1650 LED Strip</option>
                 </select>
               </label>
 
-              <button className="btn-secondary" onClick={handleAddNewSlide} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                + Add Slide
-              </button>
+              {outputMode !== '7920x1650' && (
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 700, marginRight: '1rem' }}>
+                  Default Layout:
+                  <select
+                    value={peoplePerSlide}
+                    onChange={handleLayoutChange}
+                    style={{ marginLeft: '0.5rem' }}
+                  >
+                    <option value="auto">Auto-Balance (Recommended)</option>
+                    <option value="1">1 Candidate / Slide</option>
+                    <option value="2">2 Candidates / Slide</option>
+                    <option value="3">3 Candidates / Slide</option>
+                    <option value="4">4 Candidates / Slide</option>
+                  </select>
+                </label>
+              )}
+
+              {outputMode !== '7920x1650' && (
+                <button className="btn-secondary" onClick={handleAddNewSlide} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', marginRight: '0.5rem' }}>
+                  + Add Slide
+                </button>
+              )}
 
               <button className="btn-primary" onClick={handleExportSlides} style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                 </svg>
-                Download Slides
+                {outputMode === '7920x1650' ? 'Download LED Strip' : 'Download Slides'}
               </button>
             </div>
           </div>
@@ -954,19 +1028,21 @@ export default function App() {
               <p>Upload photos to auto-populate baptism slides for this service time.</p>
             </div>
           ) : (
-            <div className="slides-grid">
+            <div className="slides-grid" style={{ gridTemplateColumns: outputMode === '7920x1650' ? '1fr' : undefined }}>
               {slides[activeTab].map((slide, sIdx) => (
-                <div key={slide.id} className="slide-card-wrapper">
+                <div key={slide.id} className="slide-card-wrapper" style={{ width: '100%' }}>
                   <div className="slide-header">
-                    <span>SLIDE {sIdx + 1} ({slide.people.length} People)</span>
+                    <span>{outputMode === '7920x1650' ? 'LED FULLSCREEN STRIP' : `SLIDE ${sIdx + 1}`} ({slide.people.length} People)</span>
                     <div className="actions">
-                      <button
-                        className="slide-btn-small delete"
-                        onClick={() => handleDeleteSlide(slide.id)}
-                        title="Delete Slide"
-                      >
-                        &times;
-                      </button>
+                      {outputMode !== '7920x1650' && (
+                        <button
+                          className="slide-btn-small delete"
+                          onClick={() => handleDeleteSlide(slide.id)}
+                          title="Delete Slide"
+                        >
+                          &times;
+                        </button>
+                      )}
                     </div>
                   </div>
                   <SlidePreview
@@ -976,6 +1052,7 @@ export default function App() {
                     onEditPhoto={handleEditPhoto}
                     templateImageLoaded={templateLoaded}
                     templateImgElement={templateImgEl}
+                    outputMode={outputMode}
                   />
                 </div>
               ))}
@@ -989,6 +1066,7 @@ export default function App() {
         <PhotoCropper
           slide={editingSlide}
           personIdx={editingPhoto.personIdx}
+          outputMode={outputMode}
           onUpdateCrop={handleUpdateCrop}
           onClose={() => setEditingPhoto(null)}
           templateImgElement={templateImgEl}

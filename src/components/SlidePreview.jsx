@@ -40,7 +40,8 @@ export default function SlidePreview({
   onAssignPhoto,
   onEditPhoto,
   templateImageLoaded,
-  templateImgElement
+  templateImgElement,
+  outputMode = '1920x1080'
 }) {
   const canvasRef = useRef(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -48,7 +49,32 @@ export default function SlidePreview({
 
   const people = slide.people || [];
   const N = people.length;
-  const layout = LAYOUTS[N] || [];
+  
+  const isLED = outputMode === '7920x1650';
+  const canvasW = isLED ? 7920 : 1920;
+  const canvasH = isLED ? 1650 : 1080;
+
+  const getLEDLayout = (num) => {
+    if (num === 0) return [];
+    const layoutArray = [];
+    const slotWidth = 7920 / num;
+    const gap = 80;
+    const maxBoxSize = 850;
+    const size = Math.min(maxBoxSize, slotWidth - gap);
+    const textHeight = Math.max(30, Math.min(55, size * 0.065)) * 3.5;
+    const spacing = 80;
+    const totalHeight = size + spacing + textHeight;
+    const yStart = (1650 - totalHeight) / 2;
+    
+    for (let i = 0; i < num; i++) {
+      const slotX = i * slotWidth;
+      const x = slotX + (slotWidth - size) / 2;
+      layoutArray.push({ x, y: yStart, size });
+    }
+    return layoutArray;
+  };
+
+  const layout = isLED ? getLEDLayout(N) : (LAYOUTS[N] || []);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -71,17 +97,22 @@ export default function SlidePreview({
     ctx.imageSmoothingQuality = 'high';
 
     // Clear canvas
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.clearRect(0, 0, canvasW, canvasH);
 
     // 1. Draw background template
-    if (templateImageLoaded && templateImgElement) {
-      ctx.drawImage(templateImgElement, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    if (isLED) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvasW, canvasH);
     } else {
-      // Fallback background if template not loaded yet
-      ctx.fillStyle = '#F4F2EF';
-      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-      ctx.fillStyle = '#B9D2DC';
-      ctx.fillRect(0, 750, CANVAS_WIDTH, 330);
+      if (templateImageLoaded && templateImgElement) {
+        ctx.drawImage(templateImgElement, 0, 0, canvasW, canvasH);
+      } else {
+        // Fallback background if template not loaded yet
+        ctx.fillStyle = '#F4F2EF';
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        ctx.fillStyle = '#B9D2DC';
+        ctx.fillRect(0, 750, canvasW, 330);
+      }
     }
 
     // 2. Draw each person (photo + border + names)
@@ -90,16 +121,16 @@ export default function SlidePreview({
       if (!box) return;
 
       const { x, y, size } = box;
+      const borderThick = isLED ? Math.max(8, Math.round(size * 0.02)) : BORDER_THICKNESS;
+      const innerX = x + borderThick;
+      const innerY = y + borderThick;
+      const innerSize = size - 2 * borderThick;
 
       // Draw photo if available
       if (person.imageFile) {
         ctx.save();
         
         // Define clipping path for the photo (inside the border)
-        const innerX = x + BORDER_THICKNESS;
-        const innerY = y + BORDER_THICKNESS;
-        const innerSize = size - 2 * BORDER_THICKNESS;
-
         ctx.beginPath();
         ctx.rect(innerX, innerY, innerSize, innerSize);
         ctx.clip();
@@ -141,42 +172,52 @@ export default function SlidePreview({
         ctx.restore();
       } else {
         // Unassigned placeholder - drawn on canvas (behind HTML overlays)
-        const innerX = x + BORDER_THICKNESS;
-        const innerY = y + BORDER_THICKNESS;
-        const innerSize = size - 2 * BORDER_THICKNESS;
         ctx.fillStyle = '#E2E8F0';
         ctx.fillRect(innerX, innerY, innerSize, innerSize);
       }
 
       // Draw white border
-      ctx.lineWidth = BORDER_THICKNESS;
+      ctx.lineWidth = borderThick;
       ctx.strokeStyle = BORDER_COLOR;
-      ctx.strokeRect(x + BORDER_THICKNESS / 2, y + BORDER_THICKNESS / 2, size - BORDER_THICKNESS, size - BORDER_THICKNESS);
+      ctx.strokeRect(x + borderThick / 2, y + borderThick / 2, size - borderThick, size - borderThick);
+
+      // Draw thin outer gray outline for LED mode
+      if (isLED) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#E2E8F0';
+        ctx.strokeRect(x, y, size, size);
+      }
 
       // Draw name text
       ctx.textAlign = 'center';
       const textX = x + size / 2;
-
-      // Draw First Name (Lato Bold)
-      ctx.font = '700 60px Lato, sans-serif';
       ctx.fillStyle = TEXT_COLOR;
-      // Adjust spacing depending on how many people are in the slide
-      const firstNameY = 910;
-      ctx.fillText(toTitleCase(person.firstName), textX, firstNameY);
 
-      // Draw Last Name (Lato Light)
-      ctx.font = '300 60px Lato, sans-serif';
-      const lastNameY = 980;
-      ctx.fillText(toTitleCase(person.lastName), textX, lastNameY);
+      if (isLED) {
+        const fontSize = Math.round(size * 0.065);
+        ctx.font = `700 ${fontSize}px Lato, sans-serif`;
+        ctx.fillText(toTitleCase(person.firstName), textX, y + size + fontSize * 1.6);
+
+        ctx.font = `300 ${fontSize}px Lato, sans-serif`;
+        ctx.fillText(toTitleCase(person.lastName), textX, y + size + fontSize * 2.8);
+      } else {
+        // Draw First Name (Lato Bold)
+        ctx.font = '700 60px Lato, sans-serif';
+        ctx.fillText(toTitleCase(person.firstName), textX, 910);
+
+        // Draw Last Name (Lato Light)
+        ctx.font = '300 60px Lato, sans-serif';
+        ctx.fillText(toTitleCase(person.lastName), textX, 980);
+      }
     });
 
-  }, [people, layout, templateImageLoaded, templateImgElement]);
+  }, [people, layout, templateImageLoaded, templateImgElement, isLED, canvasW, canvasH]);
 
   // Click handler on canvas opens cropper if photo exists
   const handleCanvasClick = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
-    const clickX = ((e.clientX - rect.left) / rect.width) * CANVAS_WIDTH;
-    const clickY = ((e.clientY - rect.top) / rect.height) * CANVAS_HEIGHT;
+    const clickX = ((e.clientX - rect.left) / rect.width) * canvasW;
+    const clickY = ((e.clientY - rect.top) / rect.height) * canvasH;
 
     // Check which person slot was clicked
     people.forEach((person, idx) => {
@@ -197,8 +238,8 @@ export default function SlidePreview({
 
   return (
     <div className="slide-card">
-      <div className="slide-canvas-container" onClick={handleCanvasClick}>
-        <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
+      <div className="slide-canvas-container" onClick={handleCanvasClick} style={{ aspectRatio: isLED ? '7920/1650' : '16/9' }}>
+        <canvas ref={canvasRef} width={canvasW} height={canvasH} />
         
         {/* Overlay showing 'Click to Crop / Adjust' if photos are assigned */}
         {people.some(p => p.imageFile) && (
@@ -217,11 +258,10 @@ export default function SlidePreview({
           if (!box) return null;
 
           // Convert coordinates to percentages for CSS positioning
-          const leftPct = (box.x / CANVAS_WIDTH) * 100;
-          const topPct = (box.y / CANVAS_HEIGHT) * 100;
-          const sizePct = (box.size / CANVAS_WIDTH) * 100;
-          // height pct uses width scaling because canvas ratio is 16:9 (w is 1920, h is 1080)
-          const heightPct = (box.size / CANVAS_HEIGHT) * 100;
+          const leftPct = (box.x / canvasW) * 100;
+          const topPct = (box.y / canvasH) * 100;
+          const sizePct = (box.size / canvasW) * 100;
+          const heightPct = (box.size / canvasH) * 100;
 
           return (
             <div
