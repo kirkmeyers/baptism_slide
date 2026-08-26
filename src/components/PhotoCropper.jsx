@@ -32,11 +32,10 @@ export default function PhotoCropper({
     const layoutArray = [];
     const slotWidth = 7920 / num;
     const gap = 80;
-    const maxBoxSize = 850;
+    const maxBoxSize = 390;
     const size = Math.min(maxBoxSize, slotWidth - gap);
-    const fontSize = Math.round(size * 0.20);
-    const textHeight = fontSize * 3.2;
-    const spacing = 80;
+    const textHeight = 155;
+    const spacing = 40;
     const totalHeight = size + spacing + textHeight;
     const yStart = (1650 - totalHeight) / 2;
     
@@ -161,11 +160,8 @@ export default function PhotoCropper({
     // Clear
     ctx.clearRect(0, 0, canvasW, canvasH);
 
-    // 1. Draw template
-    if (isLED) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvasW, canvasH);
-    } else {
+    // 1. Draw template (Option 1 only: Option 2 is transparent)
+    if (!isLED) {
       if (templateImgElement) {
         ctx.drawImage(templateImgElement, 0, 0, canvasW, canvasH);
       } else {
@@ -247,12 +243,12 @@ export default function PhotoCropper({
       ctx.fillStyle = TEXT_COLOR;
 
       if (isLED) {
-        const fontSize = Math.round(size * 0.20);
+        const fontSize = Math.min(50, Math.round(size * 0.15));
         ctx.font = `700 ${fontSize}px Lato, sans-serif`;
-        ctx.fillText(toTitleCase(p.firstName), textX, y + size + fontSize * 1.4);
+        ctx.fillText(toTitleCase(p.firstName), textX, y + size + 70);
 
         ctx.font = `300 ${fontSize}px Lato, sans-serif`;
-        ctx.fillText(toTitleCase(p.lastName), textX, y + size + fontSize * 2.5);
+        ctx.fillText(toTitleCase(p.lastName), textX, y + size + 130);
       } else {
         ctx.font = '700 60px Lato, sans-serif';
         ctx.fillText(toTitleCase(p.firstName), textX, 910);
@@ -356,7 +352,7 @@ export default function PhotoCropper({
 
         <div className="cropper-container">
           {/* Visual Workspace Canvas */}
-          <div className="cropper-canvas-wrapper" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} style={{ aspectRatio: isLED ? '7920/1650' : '16/9' }}>
+          <div className="cropper-canvas-wrapper" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} style={{ aspectRatio: isLED ? '7920/1650' : '16/9', background: isLED ? '#FFFFFF' : '#111827' }}>
             <canvas ref={canvasRef} width={canvasW} height={canvasH} />
             <div className="cropper-drag-hint">
               <span style={{ color: 'var(--accent-teal)', fontWeight: 'bold' }}>Drag on the photo</span> to pan • <span style={{ color: 'var(--accent-teal)', fontWeight: 'bold' }}>Click other photos</span> to switch focus

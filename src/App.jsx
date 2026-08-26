@@ -546,11 +546,10 @@ export default function App() {
       const layoutArray = [];
       const slotWidth = 7920 / N;
       const gap = 80;
-      const maxBoxSize = 850;
+      const maxBoxSize = 390;
       const size = Math.min(maxBoxSize, slotWidth - gap);
-      const fontSize = Math.round(size * 0.20);
-      const textHeight = fontSize * 3.2;
-      const spacing = 80;
+      const textHeight = 155;
+      const spacing = 40;
       const totalHeight = size + spacing + textHeight;
       const yStart = (1650 - totalHeight) / 2;
       
@@ -567,11 +566,8 @@ export default function App() {
       // Clear
       ctx.clearRect(0, 0, exportW, exportH);
       
-      // Draw background
-      if (isLED) {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, exportW, exportH);
-      } else {
+      // Draw background (Option 1 only: Option 2 is transparent)
+      if (!isLED) {
         if (templateLoaded && templateImgEl) {
           ctx.drawImage(templateImgEl, 0, 0, exportW, exportH);
         } else {
@@ -653,12 +649,12 @@ export default function App() {
         ctx.fillStyle = TEXT_COLOR;
 
         if (isLED) {
-          const fontSize = Math.round(size * 0.20);
+          const fontSize = Math.min(50, Math.round(size * 0.15));
           ctx.font = `700 ${fontSize}px Lato, sans-serif`;
-          ctx.fillText(toTitleCase(person.firstName), textX, y + size + fontSize * 1.4);
+          ctx.fillText(toTitleCase(person.firstName), textX, y + size + 70);
 
           ctx.font = `300 ${fontSize}px Lato, sans-serif`;
-          ctx.fillText(toTitleCase(person.lastName), textX, y + size + fontSize * 2.5);
+          ctx.fillText(toTitleCase(person.lastName), textX, y + size + 130);
         } else {
           ctx.font = '700 60px Lato, sans-serif';
           ctx.fillText(toTitleCase(person.firstName), textX, 910);

@@ -59,11 +59,10 @@ export default function SlidePreview({
     const layoutArray = [];
     const slotWidth = 7920 / num;
     const gap = 80;
-    const maxBoxSize = 850;
+    const maxBoxSize = 390;
     const size = Math.min(maxBoxSize, slotWidth - gap);
-    const fontSize = Math.round(size * 0.20);
-    const textHeight = fontSize * 3.2;
-    const spacing = 80;
+    const textHeight = 155;
+    const spacing = 40;
     const totalHeight = size + spacing + textHeight;
     const yStart = (1650 - totalHeight) / 2;
     
@@ -100,11 +99,8 @@ export default function SlidePreview({
     // Clear canvas
     ctx.clearRect(0, 0, canvasW, canvasH);
 
-    // 1. Draw background template
-    if (isLED) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvasW, canvasH);
-    } else {
+    // 1. Draw background template (Option 1 only: Option 2 is transparent)
+    if (!isLED) {
       if (templateImageLoaded && templateImgElement) {
         ctx.drawImage(templateImgElement, 0, 0, canvasW, canvasH);
       } else {
@@ -195,12 +191,12 @@ export default function SlidePreview({
       ctx.fillStyle = TEXT_COLOR;
 
       if (isLED) {
-        const fontSize = Math.round(size * 0.20);
+        const fontSize = Math.min(50, Math.round(size * 0.15));
         ctx.font = `700 ${fontSize}px Lato, sans-serif`;
-        ctx.fillText(toTitleCase(person.firstName), textX, y + size + fontSize * 1.4);
+        ctx.fillText(toTitleCase(person.firstName), textX, y + size + 70);
 
         ctx.font = `300 ${fontSize}px Lato, sans-serif`;
-        ctx.fillText(toTitleCase(person.lastName), textX, y + size + fontSize * 2.5);
+        ctx.fillText(toTitleCase(person.lastName), textX, y + size + 130);
       } else {
         // Draw First Name (Lato Bold)
         ctx.font = '700 60px Lato, sans-serif';
@@ -239,7 +235,7 @@ export default function SlidePreview({
 
   return (
     <div className="slide-card">
-      <div className="slide-canvas-container" onClick={handleCanvasClick} style={{ aspectRatio: isLED ? '7920/1650' : '16/9' }}>
+      <div className="slide-canvas-container" onClick={handleCanvasClick} style={{ aspectRatio: isLED ? '7920/1650' : '16/9', background: isLED ? '#FFFFFF' : '#1e293b' }}>
         <canvas ref={canvasRef} width={canvasW} height={canvasH} />
         
         {/* Overlay showing 'Click to Crop / Adjust' if photos are assigned */}
