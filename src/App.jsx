@@ -345,15 +345,38 @@ export default function App() {
   // Load Mock / Sample Data for local previewing
   const handleLoadSamples = () => {
     const sampleFiles = [
+      // 9:00 AM candidates (8 people)
       { name: 'Jane_Smith_900am_20260816.png', file: 'Jane_Smith_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
       { name: 'Mary_Jones_900am_20260816.png', file: 'Mary_Jones_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
       { name: 'John_Smith_900am_20260816.png', file: 'John_Smith_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Robert_Johnson_900am_20260816.png', file: 'Jane_Smith_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'William_Brown_900am_20260816.png', file: 'Mary_Jones_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'David_Jones_900am_20260816.png', file: 'John_Smith_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Richard_Miller_900am_20260816.png', file: 'Jane_Smith_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Thomas_Davis_900am_20260816.png', file: 'Mary_Jones_900am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+
+      // 11:15 AM candidates (9 people)
       { name: 'Emily_Davis_1115am_20260816.png', file: 'Emily_Davis_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
       { name: 'Michael_Taylor_1115am_20260816.png', file: 'Michael_Taylor_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Linda_Wilson_1115am_20260816.png', file: 'Emily_Davis_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Elizabeth_Taylor_1115am_20260816.png', file: 'Michael_Taylor_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Joseph_Thomas_1115am_20260816.png', file: 'Emily_Davis_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Charles_Moore_1115am_20260816.png', file: 'Michael_Taylor_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Christopher_Martin_1115am_20260816.png', file: 'Emily_Davis_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Daniel_Jackson_1115am_20260816.png', file: 'Michael_Taylor_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Matthew_Lee_1115am_20260816.png', file: 'Emily_Davis_1115am_20260816.png', zoom: 1, panX: 0, panY: 0 },
+
+      // 4:00 PM candidates (10 people)
       { name: 'Sarah_Thomas_400pm_20260816.png', file: 'Sarah_Thomas_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
       { name: 'David_Wilson_400pm_20260816.png', file: 'David_Wilson_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
       { name: 'James_Miller_400pm_20260816.png', file: 'James_Miller_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
-      { name: 'Lisa_Brown_400pm_20260816.png', file: 'Lisa_Brown_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 }
+      { name: 'Lisa_Brown_400pm_20260816.png', file: 'Lisa_Brown_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Karen_Garcia_400pm_20260816.png', file: 'Sarah_Thomas_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Nancy_Martinez_400pm_20260816.png', file: 'David_Wilson_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Steven_Rodriguez_400pm_20260816.png', file: 'James_Miller_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Paul_Hernandez_400pm_20260816.png', file: 'Lisa_Brown_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Mark_Lopez_400pm_20260816.png', file: 'Sarah_Thomas_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Donald_Gonzalez_400pm_20260816.png', file: 'David_Wilson_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 }
     ];
 
     let loadedCount = 0;
@@ -525,7 +548,8 @@ export default function App() {
       const gap = 80;
       const maxBoxSize = 850;
       const size = Math.min(maxBoxSize, slotWidth - gap);
-      const textHeight = Math.max(30, Math.min(55, size * 0.065)) * 3.5;
+      const fontSize = Math.round(size * 0.20);
+      const textHeight = fontSize * 3.2;
       const spacing = 80;
       const totalHeight = size + spacing + textHeight;
       const yStart = (1650 - totalHeight) / 2;
@@ -629,12 +653,12 @@ export default function App() {
         ctx.fillStyle = TEXT_COLOR;
 
         if (isLED) {
-          const fontSize = Math.round(size * 0.065);
+          const fontSize = Math.round(size * 0.20);
           ctx.font = `700 ${fontSize}px Lato, sans-serif`;
-          ctx.fillText(toTitleCase(person.firstName), textX, y + size + fontSize * 1.6);
+          ctx.fillText(toTitleCase(person.firstName), textX, y + size + fontSize * 1.4);
 
           ctx.font = `300 ${fontSize}px Lato, sans-serif`;
-          ctx.fillText(toTitleCase(person.lastName), textX, y + size + fontSize * 2.8);
+          ctx.fillText(toTitleCase(person.lastName), textX, y + size + fontSize * 2.5);
         } else {
           ctx.font = '700 60px Lato, sans-serif';
           ctx.fillText(toTitleCase(person.firstName), textX, 910);
