@@ -65,7 +65,7 @@ export default function App() {
   const [photos, setPhotos] = useState([]);
   const [activeTab, setActiveTab] = useState('9:00 AM'); // '9:00 AM', '11:15 AM', or '4:00 PM'
   const [peoplePerSlide, setPeoplePerSlide] = useState('auto'); // default auto-balance
-  const [outputMode, setOutputMode] = useState('1920x1080'); // '1920x1080' or '7920x1650'
+  const [outputMode, setOutputMode] = useState('7920x1650'); // '1920x1080' or '7920x1650'
   
   // Slide grouping state: { '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] }
   const [slides, setSlides] = useState({ '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] });
@@ -832,7 +832,7 @@ export default function App() {
           </div>
           <div>
             <h1>Watermark Baptism Graphics</h1>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Automated Slide Compositor • 1920x1080 HD</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Automated Slide Compositor</p>
           </div>
         </div>
         <div className="header-actions">
@@ -1074,12 +1074,12 @@ export default function App() {
                   onChange={(e) => {
                     const newMode = e.target.value;
                     setOutputMode(newMode);
-                    triggerToast(newMode === '7920x1650' ? 'Switched to 7920x1650 LED Strip Mode' : 'Switched to 1920x1080 slide mode');
+                    triggerToast(newMode === '7920x1650' ? 'Switched to 7920 LED Wide Mode' : 'Switched to 1920x1080 slide mode');
                   }}
                   style={{ marginLeft: '0.5rem', marginRight: '1.25rem' }}
                 >
                   <option value="1920x1080">Option 1: 1920x1080 Slide Show</option>
-                  <option value="7920x1650">Option 2: 7920x1650 LED Strip</option>
+                  <option value="7920x1650">Option 2: 7920 LED Wide</option>
                 </select>
               </label>
 
