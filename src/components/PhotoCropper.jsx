@@ -262,13 +262,13 @@ export default function PhotoCropper({
         ctx.font = `700 ${fontSize}px Lato, sans-serif`;
         ctx.fillText(toTitleCase(p.firstName), textX, y + size + 75);
 
-        ctx.font = `300 ${fontSize}px Lato, sans-serif`;
+        ctx.font = `400 ${fontSize}px Lato, sans-serif`;
         ctx.fillText(toTitleCase(p.lastName), textX, y + size + 140);
       } else {
         ctx.font = '700 60px Lato, sans-serif';
         ctx.fillText(toTitleCase(p.firstName), textX, 910);
 
-        ctx.font = '300 60px Lato, sans-serif';
+        ctx.font = '400 60px Lato, sans-serif';
         ctx.fillText(toTitleCase(p.lastName), textX, 980);
       }
 
