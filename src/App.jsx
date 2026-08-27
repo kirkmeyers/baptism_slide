@@ -62,18 +62,23 @@ const getDefaultCropSettings = (imgW, imgH, mode) => {
   const borderThick = isLED ? Math.max(8, Math.round(size * 0.02)) : BORDER_THICKNESS;
   const innerSize = size - 2 * borderThick;
 
-  if (imgW <= imgH) {
-    // Portrait photo: zoom in to 1.35 and align the top with 12% headroom
-    const zoom = 1.35;
+  const ratio = imgH / imgW;
+
+  if (ratio >= 0.95 && ratio <= 1.05) {
+    // 1. Square or near-square photo: Keep standard cover-fit centered without changes
+    return { zoom: 1.0, panX: 0, panY: 0 };
+  } else if (ratio > 1.05) {
+    // 2. Tall portrait photo: Keep light zoom and shift vertically up to show head with headroom
+    const zoom = 1.05;
     const renderH = imgH * (innerSize / imgW) * zoom;
     const maxY = (renderH - innerSize) / 2;
-    // Headroom offset: place the top of the photo 12% of the frame size above the frame top
-    const targetPanY = maxY - (0.12 * innerSize);
+    // Headroom offset: place the top of the photo 5% of the frame size above the frame top
+    const targetPanY = maxY - (0.05 * innerSize);
     const panY = Math.max(-maxY, Math.min(maxY, targetPanY));
     return { zoom, panX: 0, panY };
   } else {
-    // Landscape photo: zoom in to 1.6 to crop sides and center
-    const zoom = 1.6;
+    // 3. Wide landscape photo: Zoom in slightly to fit and center horizontally/vertically
+    const zoom = 1.15;
     return { zoom, panX: 0, panY: 0 };
   }
 };
