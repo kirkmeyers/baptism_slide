@@ -814,7 +814,7 @@ export default function App() {
 
       // Download directly as PNG
       const filename = isLED 
-        ? `${activeTab.replace(/[^a-z0-9]/gi, '')}_led_strip.png`
+        ? `${activeTab.replace(/[^a-z0-9]/gi, '')}_led_wide.png`
         : `${activeTab.replace(/[^a-z0-9]/gi, '')}_slide_${index.toString().padStart(2, '0')}.png`;
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
