@@ -355,12 +355,40 @@ export default function PhotoCropper({
   };
 
   const handleSwapSilhouette = (filename) => {
-    const photoObj = availablePhotos.find((p) => p.name === filename);
-    if (photoObj) {
-      onAssignPhoto(slide.id, activeIdx, photoObj);
-      setDraftPeople((prev) =>
-        prev.map((item, idx) => (idx === activeIdx ? { zoom: 1, panX: 0, panY: 0 } : item))
-      );
+    const activePerson = people[activeIdx];
+    if (!activePerson) return;
+
+    const isCurrentSilhouette = activePerson.imageFile?.name === filename;
+
+    if (isCurrentSilhouette) {
+      // Toggle off: Revert to original photo
+      const originalPhoto = activePerson.originalImageFile;
+      if (originalPhoto) {
+        onAssignPhoto(slide.id, activeIdx, originalPhoto);
+        const savedPhoto = availablePhotos.find(p => p.name === originalPhoto.name) || originalPhoto;
+        setDraftPeople((prev) =>
+          prev.map((item, idx) => (idx === activeIdx ? { 
+            zoom: savedPhoto.zoom || 1.0, 
+            panX: savedPhoto.panX || 0, 
+            panY: savedPhoto.panY || 0 
+          } : item))
+        );
+      } else {
+        // Clear assignment if there was no original photo
+        onAssignPhoto(slide.id, activeIdx, null);
+        setDraftPeople((prev) =>
+          prev.map((item, idx) => (idx === activeIdx ? { zoom: 1.0, panX: 0, panY: 0 } : item))
+        );
+      }
+    } else {
+      // Toggle on: Assign silhouette
+      const photoObj = availablePhotos.find((p) => p.name === filename);
+      if (photoObj) {
+        onAssignPhoto(slide.id, activeIdx, photoObj);
+        setDraftPeople((prev) =>
+          prev.map((item, idx) => (idx === activeIdx ? { zoom: 1.0, panX: 0, panY: 0 } : item))
+        );
+      }
     }
   };
 
@@ -464,22 +492,51 @@ export default function PhotoCropper({
                 <span className="control-label" style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   Quick Silhouette Swap:
                 </span>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button
-                    className="btn-secondary"
-                    style={{ flex: 1, padding: '0.4rem 0.5rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                    onClick={() => handleSwapSilhouette('silhouette_female.png')}
-                  >
-                    👩 Female
-                  </button>
-                  <button
-                    className="btn-secondary"
-                    style={{ flex: 1, padding: '0.4rem 0.5rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                    onClick={() => handleSwapSilhouette('silhouette_male.png')}
-                  >
-                    👨 Male
-                  </button>
-                </div>
+                {(() => {
+                  const activePerson = people[activeIdx];
+                  const isFemaleActive = activePerson?.imageFile?.name === 'silhouette_female.png';
+                  const isMaleActive = activePerson?.imageFile?.name === 'silhouette_male.png';
+                  return (
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <button
+                        className={isFemaleActive ? "btn-primary" : "btn-secondary"}
+                        style={{
+                          flex: 1,
+                          padding: '0.4rem 0.5rem',
+                          fontSize: '0.72rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.25rem',
+                          border: isFemaleActive ? '1px solid var(--accent-teal)' : undefined,
+                          background: isFemaleActive ? 'rgba(0, 242, 254, 0.2)' : undefined,
+                          color: isFemaleActive ? '#FFFFFF' : undefined
+                        }}
+                        onClick={() => handleSwapSilhouette('silhouette_female.png')}
+                      >
+                        👩 Female
+                      </button>
+                      <button
+                        className={isMaleActive ? "btn-primary" : "btn-secondary"}
+                        style={{
+                          flex: 1,
+                          padding: '0.4rem 0.5rem',
+                          fontSize: '0.72rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.25rem',
+                          border: isMaleActive ? '1px solid var(--accent-teal)' : undefined,
+                          background: isMaleActive ? 'rgba(0, 242, 254, 0.2)' : undefined,
+                          color: isMaleActive ? '#FFFFFF' : undefined
+                        }}
+                        onClick={() => handleSwapSilhouette('silhouette_male.png')}
+                      >
+                        👨 Male
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="cropper-help-box">

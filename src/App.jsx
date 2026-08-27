@@ -55,32 +55,9 @@ const parseFilenamePattern = (filename) => {
   return null;
 };
 
-// Smart-cropping helper to frame faces with headroom and consistent proportions
-const getDefaultCropSettings = (imgW, imgH, mode) => {
-  const isLED = mode === '7920x1650';
-  const size = isLED ? 390 : 532;
-  const borderThick = isLED ? Math.max(8, Math.round(size * 0.02)) : BORDER_THICKNESS;
-  const innerSize = size - 2 * borderThick;
-
-  const ratio = imgH / imgW;
-
-  if (ratio >= 0.95 && ratio <= 1.05) {
-    // 1. Square or near-square photo: Keep standard cover-fit centered without changes
-    return { zoom: 1.0, panX: 0, panY: 0 };
-  } else if (ratio > 1.05) {
-    // 2. Tall portrait photo: Keep light zoom and shift vertically up to show head with headroom
-    const zoom = 1.05;
-    const renderH = imgH * (innerSize / imgW) * zoom;
-    const maxY = (renderH - innerSize) / 2;
-    // Headroom offset: place the top of the photo 5% of the frame size above the frame top
-    const targetPanY = maxY - (0.05 * innerSize);
-    const panY = Math.max(-maxY, Math.min(maxY, targetPanY));
-    return { zoom, panX: 0, panY };
-  } else {
-    // 3. Wide landscape photo: Zoom in slightly to fit and center horizontally/vertically
-    const zoom = 1.15;
-    return { zoom, panX: 0, panY: 0 };
-  }
+// Default crop settings helper: simple cover fit centered
+const getDefaultCropSettings = () => {
+  return { zoom: 1.0, panX: 0, panY: 0 };
 };
 
 export default function App() {
@@ -353,6 +330,7 @@ export default function App() {
         lastName: last,
         serviceTime: service,
         imageFile: photo,
+        originalImageFile: photo.isSilhouette ? null : photo,
         sortOrder: photo.sortOrder || 0,
         zoom: photo.zoom || 1,
         panX: photo.panX || 0,
@@ -556,9 +534,11 @@ export default function App() {
         updated[service] = updated[service].map((slide) => {
           if (slide.id !== slideId) return slide;
           const people = [...slide.people];
+          const isSilhouette = photoObj?.isSilhouette;
           people[personIdx] = {
             ...people[personIdx],
-            imageFile: photoObj
+            imageFile: photoObj,
+            originalImageFile: isSilhouette ? (people[personIdx].originalImageFile || null) : photoObj
           };
           return { ...slide, people };
         });
