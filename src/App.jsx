@@ -79,6 +79,7 @@ export default function App() {
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
 
   // Load template image on startup (check custom template cache first)
   useEffect(() => {
@@ -343,8 +344,8 @@ export default function App() {
   }, [photos, peoplePerSlide, outputMode]);
 
   // Handle Photo files upload
-  const handlePhotoUpload = (e) => {
-    const allFiles = Array.from(e.target.files || []);
+  // Core logic to load, resolve, and update photos list (supporting multiple/replacement matches)
+  const processPhotos = (allFiles) => {
     const files = allFiles.filter(file => file.type.startsWith('image/'));
     
     if (files.length === 0) {
@@ -368,7 +369,7 @@ export default function App() {
             newPhotos.forEach((newPhoto) => {
               const existingIdx = updated.findIndex((p) => p.name === newPhoto.name || p.cleanName === newPhoto.cleanName);
               if (existingIdx !== -1) {
-                // Replace the image file data, and reset its crop settings to new default smart crop
+                // Replace the image file data, and reset its crop settings to new default crop
                 updated[existingIdx] = {
                   ...updated[existingIdx],
                   url: newPhoto.url,
@@ -411,6 +412,69 @@ export default function App() {
         checkCompletion();
       };
     });
+  };
+
+  // Handle Photo files select upload
+  const handlePhotoUpload = (e) => {
+    const allFiles = Array.from(e.target.files || []);
+    processPhotos(allFiles);
+  };
+
+  // Handle drag and drop upload zone overrides
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const items = Array.from(e.dataTransfer.items || []);
+    const files = [];
+
+    // Recursive directory traverser
+    const traverseEntry = async (entry) => {
+      if (entry.isFile) {
+        const file = await new Promise((resolve) => entry.file(resolve));
+        files.push(file);
+      } else if (entry.isDirectory) {
+        const dirReader = entry.createReader();
+        const entries = await new Promise((resolve) => {
+          dirReader.readEntries(resolve);
+        });
+        for (const childEntry of entries) {
+          await traverseEntry(childEntry);
+        }
+      }
+    };
+
+    // Iterate through dropped items and resolve files/folders
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+        if (entry) {
+          await traverseEntry(entry);
+        } else {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      processPhotos(files);
+    } else {
+      const directFiles = Array.from(e.dataTransfer.files || []);
+      if (directFiles.length > 0) {
+        processPhotos(directFiles);
+      }
+    }
   };
 
   const removePhoto = (photoName) => {
@@ -868,7 +932,12 @@ export default function App() {
               1. Upload Candidate Photos
               <span className="badge">{photos.length} Files</span>
             </h3>
-            <label className="upload-zone">
+            <label
+              className={`upload-zone ${isDragging ? 'active' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               <input
                 type="file"
                 multiple
@@ -881,7 +950,13 @@ export default function App() {
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
               </svg>
               <div className="upload-text">
-                <strong>Click to Upload Folder</strong> or select files
+                {isDragging ? (
+                  <strong style={{ color: 'var(--accent-blue)' }}>Drop files here to upload!</strong>
+                ) : (
+                  <>
+                    <strong>Click to Upload Folder</strong> or drag & drop files here
+                  </>
+                )}
               </div>
             </label>
 
