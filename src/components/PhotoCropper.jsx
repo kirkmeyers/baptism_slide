@@ -248,12 +248,7 @@ export default function PhotoCropper({
       ctx.strokeStyle = BORDER_COLOR;
       ctx.strokeRect(x + borderThick / 2, y + borderThick / 2, size - borderThick, size - borderThick);
 
-      // Draw thin outer gray outline for LED mode
-      if (isLED) {
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#E2E8F0';
-        ctx.strokeRect(x, y, size, size);
-      }
+
 
       // Names
       ctx.textAlign = 'center';
