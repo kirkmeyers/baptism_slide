@@ -306,7 +306,9 @@ export default function SlidePreview({
                       >
                         <img src={photo.url} alt={photo.name} />
                         <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                          {photo.name}
+                          {photo.name === 'silhouette_female.png' ? '👤 Silhouette (Female)' : 
+                           photo.name === 'silhouette_male.png' ? '👤 Silhouette (Male)' : 
+                           photo.name}
                         </span>
                       </div>
                     ))

@@ -55,6 +55,29 @@ const parseFilenamePattern = (filename) => {
   return null;
 };
 
+// Smart-cropping helper to frame faces with headroom and consistent proportions
+const getDefaultCropSettings = (imgW, imgH, mode) => {
+  const isLED = mode === '7920x1650';
+  const size = isLED ? 390 : 532;
+  const borderThick = isLED ? Math.max(8, Math.round(size * 0.02)) : BORDER_THICKNESS;
+  const innerSize = size - 2 * borderThick;
+
+  if (imgW <= imgH) {
+    // Portrait photo: zoom in to 1.35 and align the top with 12% headroom
+    const zoom = 1.35;
+    const renderH = imgH * (innerSize / imgW) * zoom;
+    const maxY = (renderH - innerSize) / 2;
+    // Headroom offset: place the top of the photo 12% of the frame size above the frame top
+    const targetPanY = maxY - (0.12 * innerSize);
+    const panY = Math.max(-maxY, Math.min(maxY, targetPanY));
+    return { zoom, panX: 0, panY };
+  } else {
+    // Landscape photo: zoom in to 1.6 to crop sides and center
+    const zoom = 1.6;
+    return { zoom, panX: 0, panY: 0 };
+  }
+};
+
 export default function App() {
   const [candidates, setCandidates] = useState([]);
   const [photos, setPhotos] = useState([]);
@@ -93,6 +116,55 @@ export default function App() {
           setTemplateLoaded(true);
         };
       }
+    };
+
+    // Pre-load Silhouettes
+    const femaleImg = new Image();
+    femaleImg.src = '/samples/silhouette_female.png';
+    femaleImg.onload = () => {
+      setPhotos((prev) => {
+        if (prev.some((p) => p.name === 'silhouette_female.png')) return prev;
+        return [
+          ...prev,
+          {
+            name: 'silhouette_female.png',
+            cleanName: 'silhouettefemale',
+            firstName: 'Silhouette',
+            lastName: 'Female',
+            url: femaleImg.src,
+            _element: femaleImg,
+            service: 'Silhouette',
+            zoom: 1,
+            panX: 0,
+            panY: 0,
+            isSilhouette: true
+          }
+        ];
+      });
+    };
+
+    const maleImg = new Image();
+    maleImg.src = '/samples/silhouette_male.png';
+    maleImg.onload = () => {
+      setPhotos((prev) => {
+        if (prev.some((p) => p.name === 'silhouette_male.png')) return prev;
+        return [
+          ...prev,
+          {
+            name: 'silhouette_male.png',
+            cleanName: 'silhouettemale',
+            firstName: 'Silhouette',
+            lastName: 'Male',
+            url: maleImg.src,
+            _element: maleImg,
+            service: 'Silhouette',
+            zoom: 1,
+            panX: 0,
+            panY: 0,
+            isSilhouette: true
+          }
+        ];
+      });
     };
   }, []);
 
@@ -308,13 +380,33 @@ export default function App() {
       const checkCompletion = () => {
         loadedCount++;
         if (loadedCount === files.length) {
-          setPhotos((prev) => [...prev, ...newPhotos]);
+          setPhotos((prev) => {
+            const updated = [...prev];
+            newPhotos.forEach((newPhoto) => {
+              const existingIdx = updated.findIndex((p) => p.name === newPhoto.name || p.cleanName === newPhoto.cleanName);
+              if (existingIdx !== -1) {
+                // Replace the image file data, and reset its crop settings to new default smart crop
+                updated[existingIdx] = {
+                  ...updated[existingIdx],
+                  url: newPhoto.url,
+                  _element: newPhoto._element,
+                  zoom: newPhoto.zoom,
+                  panX: newPhoto.panX,
+                  panY: newPhoto.panY
+                };
+              } else {
+                updated.push(newPhoto);
+              }
+            });
+            return updated;
+          });
           triggerToast(`Uploaded and processed ${newPhotos.length} photos!`);
         }
       };
 
       img.onload = () => {
         const parsedMeta = parseFilenamePattern(file.name);
+        const defaultCrop = getDefaultCropSettings(img.width, img.height, outputMode);
         const photoObj = {
           name: file.name,
           cleanName: parsedMeta ? parsedMeta.name.toLowerCase().replace(/[^a-z0-9]/g, '') : file.name.toLowerCase().replace(/\.[^/.]+$/, '').replace(/[^a-z0-9]/g, ''),
@@ -323,9 +415,9 @@ export default function App() {
           url: url,
           _element: img,
           service: parsedMeta ? parsedMeta.serviceTime : null,
-          zoom: 1,
-          panX: 0,
-          panY: 0
+          zoom: defaultCrop.zoom,
+          panX: defaultCrop.panX,
+          panY: defaultCrop.panY
         };
         newPhotos.push(photoObj);
         checkCompletion();
@@ -387,6 +479,7 @@ export default function App() {
       img.src = `/samples/${sample.file}`;
       img.onload = () => {
         const parsedMeta = parseFilenamePattern(sample.name);
+        const defaultCrop = getDefaultCropSettings(img.width, img.height, outputMode);
         loadedPhotos.push({
           name: sample.name,
           cleanName: parsedMeta ? parsedMeta.name.toLowerCase().replace(/[^a-z0-9]/g, '') : sample.name.toLowerCase(),
@@ -395,9 +488,9 @@ export default function App() {
           url: img.src,
           _element: img,
           service: parsedMeta ? parsedMeta.serviceTime : null,
-          zoom: sample.zoom,
-          panX: sample.panX,
-          panY: sample.panY
+          zoom: defaultCrop.zoom,
+          panX: defaultCrop.panX,
+          panY: defaultCrop.panY
         });
         loadedCount++;
 
@@ -807,9 +900,9 @@ export default function App() {
               </div>
             </label>
 
-            {photos.length > 0 && (
+            {photos.filter(p => !p.isSilhouette).length > 0 && (
               <div className="photo-file-list">
-                {photos.map((p) => (
+                {photos.filter(p => !p.isSilhouette).map((p) => (
                   <div key={p.name} className="photo-file-item">
                     <img src={p.url} alt={p.name} />
                     <button className="btn-remove-file" onClick={() => removePhoto(p.name)}>&times;</button>
@@ -1091,6 +1184,8 @@ export default function App() {
           onUpdateCrop={handleUpdateCrop}
           onClose={() => setEditingPhoto(null)}
           templateImgElement={templateImgEl}
+          availablePhotos={photos}
+          onAssignPhoto={handleAssignPhoto}
         />
       )}
 

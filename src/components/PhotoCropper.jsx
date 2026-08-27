@@ -18,7 +18,9 @@ export default function PhotoCropper({
   onUpdateCrop,
   onClose,
   templateImgElement,
-  outputMode = '1920x1080'
+  outputMode = '1920x1080',
+  availablePhotos = [],
+  onAssignPhoto = () => {}
 }) {
   const canvasRef = useRef(null);
   const people = slide.people || [];
@@ -352,6 +354,16 @@ export default function PhotoCropper({
     isDragging.current = false;
   };
 
+  const handleSwapSilhouette = (filename) => {
+    const photoObj = availablePhotos.find((p) => p.name === filename);
+    if (photoObj) {
+      onAssignPhoto(slide.id, activeIdx, photoObj);
+      setDraftPeople((prev) =>
+        prev.map((item, idx) => (idx === activeIdx ? { zoom: 1, panX: 0, panY: 0 } : item))
+      );
+    }
+  };
+
   const handleSave = () => {
     onUpdateCrop(slide.id, draftPeople);
     onClose();
@@ -446,6 +458,28 @@ export default function PhotoCropper({
                   className="range-input"
                   style={{ marginTop: '0.5rem' }}
                 />
+              </div>
+
+              <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem' }}>
+                <span className="control-label" style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Quick Silhouette Swap:
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button
+                    className="btn-secondary"
+                    style={{ flex: 1, padding: '0.4rem 0.5rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                    onClick={() => handleSwapSilhouette('silhouette_female.png')}
+                  >
+                    👩 Female
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    style={{ flex: 1, padding: '0.4rem 0.5rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                    onClick={() => handleSwapSilhouette('silhouette_male.png')}
+                  >
+                    👨 Male
+                  </button>
+                </div>
               </div>
 
               <div className="cropper-help-box">
