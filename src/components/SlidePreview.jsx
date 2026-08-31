@@ -41,7 +41,8 @@ export default function SlidePreview({
   onEditPhoto,
   templateImageLoaded,
   templateImgElement,
-  outputMode = '1920x1080'
+  outputMode = '1920x1080',
+  enableFamilyGrouping = true
 }) {
   const canvasRef = useRef(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -89,7 +90,7 @@ export default function SlidePreview({
       const prevLast = (prevPerson?.lastName || '').trim().toLowerCase();
       const nextLast = (nextPerson?.lastName || '').trim().toLowerCase();
 
-      if (prevLast && nextLast && prevLast === nextLast) {
+      if (enableFamilyGrouping && prevLast && nextLast && prevLast === nextLast) {
         // We have a split conflict inside a family! Find start and end of this family block
         let start = splitIdx - 1;
         while (start > 0 && (peopleList[start - 1]?.lastName || '').trim().toLowerCase() === prevLast) {

@@ -20,7 +20,8 @@ export default function PhotoCropper({
   templateImgElement,
   outputMode = '1920x1080',
   availablePhotos = [],
-  onAssignPhoto = () => {}
+  onAssignPhoto = () => {},
+  enableFamilyGrouping = true
 }) {
   const canvasRef = useRef(null);
   const people = slide.people || [];
@@ -64,7 +65,7 @@ export default function PhotoCropper({
       const prevLast = (prevPerson?.lastName || '').trim().toLowerCase();
       const nextLast = (nextPerson?.lastName || '').trim().toLowerCase();
 
-      if (prevLast && nextLast && prevLast === nextLast) {
+      if (enableFamilyGrouping && prevLast && nextLast && prevLast === nextLast) {
         // We have a split conflict inside a family! Find start and end of this family block
         let start = splitIdx - 1;
         while (start > 0 && (peopleList[start - 1]?.lastName || '').trim().toLowerCase() === prevLast) {

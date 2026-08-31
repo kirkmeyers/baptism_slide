@@ -80,6 +80,7 @@ export default function App() {
   // Toast notification state
   const [toastMessage, setToastMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [enableFamilyGrouping, setEnableFamilyGrouping] = useState(true);
 
   // Load template image on startup (check custom template cache first)
   useEffect(() => {
@@ -215,66 +216,95 @@ export default function App() {
           people: filtered
         });
       } else {
-        // Group candidates into families by matching adjacent last names
-        const families = [];
-        let currentFamily = [];
+        if (enableFamilyGrouping) {
+          // Group candidates into families by matching adjacent last names
+          const families = [];
+          let currentFamily = [];
 
-        filtered.forEach((c) => {
-          if (currentFamily.length === 0) {
-            currentFamily.push(c);
-          } else {
-            const prev = currentFamily[currentFamily.length - 1];
-            const prevLast = (prev.lastName || '').trim().toLowerCase();
-            const currLast = (c.lastName || '').trim().toLowerCase();
-
-            // Keep together if last names are identical and non-empty
-            if (prevLast && currLast && prevLast === currLast) {
+          filtered.forEach((c) => {
+            if (currentFamily.length === 0) {
               currentFamily.push(c);
             } else {
-              families.push(currentFamily);
-              currentFamily = [c];
+              const prev = currentFamily[currentFamily.length - 1];
+              const prevLast = (prev.lastName || '').trim().toLowerCase();
+              const currLast = (c.lastName || '').trim().toLowerCase();
+
+              // Keep together if last names are identical and non-empty
+              if (prevLast && currLast && prevLast === currLast) {
+                currentFamily.push(c);
+              } else {
+                families.push(currentFamily);
+                currentFamily = [c];
+              }
+            }
+          });
+          if (currentFamily.length > 0) {
+            families.push(currentFamily);
+          }
+
+          const targetCapacity = perSlide === 'auto' ? 4 : parseInt(perSlide, 10);
+          const resultSlides = [[]];
+
+          families.forEach((fam) => {
+            let activeSlide = resultSlides[resultSlides.length - 1];
+
+            if (targetCapacity === 1) {
+              // Strict 1-per-slide limit requested
+              fam.forEach((member) => {
+                if (activeSlide.length === 1) {
+                  resultSlides.push([member]);
+                  activeSlide = resultSlides[resultSlides.length - 1];
+                } else {
+                  activeSlide.push(member);
+                }
+              });
+              return;
+            }
+
+            // If adding this family exceeds the target capacity, start a new slide
+            if (activeSlide.length > 0 && activeSlide.length + fam.length > targetCapacity) {
+              resultSlides.push([...fam]);
+            } else {
+              fam.forEach(m => activeSlide.push(m));
+            }
+          });
+
+          // Map resulting partition array to slides state
+          resultSlides.forEach((chunk, sIdx) => {
+            if (chunk.length === 0) return;
+            newSlides[service].push({
+              id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${sIdx}`,
+              people: chunk
+            });
+          });
+        } else {
+          // Standard layout logic (no family grouping)
+          if (perSlide === 'auto') {
+            const S = Math.ceil(N / 4);
+            const base = Math.floor(N / S);
+            const rem = N % S;
+            let currentIndex = 0;
+
+            for (let s = 0; s < S; s++) {
+              const size = s < rem ? base + 1 : base;
+              const chunk = filtered.slice(currentIndex, currentIndex + size);
+              currentIndex += size;
+              newSlides[service].push({
+                id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${s}`,
+                people: chunk
+              });
+            }
+          } else {
+            const K = parseInt(perSlide, 10) || 2;
+            for (let i = 0; i < N; i += K) {
+              const chunk = filtered.slice(i, i + K);
+              newSlides[service].push({
+                id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${i / K}`,
+                people: chunk
+              });
             }
           }
-        });
-        if (currentFamily.length > 0) {
-          families.push(currentFamily);
         }
-
-        const targetCapacity = perSlide === 'auto' ? 4 : parseInt(perSlide, 10);
-        const resultSlides = [[]];
-
-        families.forEach((fam) => {
-          let activeSlide = resultSlides[resultSlides.length - 1];
-
-          if (targetCapacity === 1) {
-            // Strict 1-per-slide limit requested
-            fam.forEach((member) => {
-              if (activeSlide.length === 1) {
-                resultSlides.push([member]);
-                activeSlide = resultSlides[resultSlides.length - 1];
-              } else {
-                activeSlide.push(member);
-              }
-            });
-            return;
-          }
-
-          // If adding this family exceeds the target capacity, start a new slide
-          if (activeSlide.length > 0 && activeSlide.length + fam.length > targetCapacity) {
-            resultSlides.push([...fam]);
-          } else {
-            fam.forEach(m => activeSlide.push(m));
-          }
-        });
-
-        // Map resulting partition array to slides state
-        resultSlides.forEach((chunk, sIdx) => {
-          if (chunk.length === 0) return;
-          newSlides[service].push({
-            id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${sIdx}`,
-            people: chunk
-          });
-        });
       }
     });
 
@@ -1287,6 +1317,19 @@ export default function App() {
                 </label>
               )}
 
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 700, marginRight: '1rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={enableFamilyGrouping}
+                  onChange={(e) => {
+                    setEnableFamilyGrouping(e.target.checked);
+                    triggerToast(e.target.checked ? 'Family Grouping Enabled' : 'Family Grouping Disabled');
+                  }}
+                  style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                />
+                <span>Family Grouping</span>
+              </label>
+
               {outputMode !== '7920x1650' && (
                 <button className="btn-secondary" onClick={handleAddNewSlide} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', marginRight: '0.5rem' }}>
                   + Add Slide
@@ -1339,6 +1382,7 @@ export default function App() {
                     templateImageLoaded={templateLoaded}
                     templateImgElement={templateImgEl}
                     outputMode={outputMode}
+                    enableFamilyGrouping={enableFamilyGrouping}
                   />
                 </div>
               ))}
@@ -1358,6 +1402,7 @@ export default function App() {
           templateImgElement={templateImgEl}
           availablePhotos={photos}
           onAssignPhoto={handleAssignPhoto}
+          enableFamilyGrouping={enableFamilyGrouping}
         />
       )}
 
