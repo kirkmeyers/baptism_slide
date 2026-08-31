@@ -54,7 +54,8 @@ export default function SlidePreview({
   const canvasW = isLED ? 7920 : 1920;
   const canvasH = isLED ? 1650 : 1080;
 
-  const getLEDLayout = (num) => {
+  const getLEDLayout = (peopleList) => {
+    const num = peopleList.length;
     if (num === 0) return [];
     
     if (num < 16) {
@@ -81,7 +82,45 @@ export default function SlidePreview({
       return layoutArray;
     } else {
       // Double Row layout (16 or more people)
-      const num1 = Math.ceil(num / 2);
+      let splitIdx = Math.ceil(num / 2);
+
+      const prevPerson = peopleList[splitIdx - 1];
+      const nextPerson = peopleList[splitIdx];
+      const prevLast = (prevPerson?.lastName || '').trim().toLowerCase();
+      const nextLast = (nextPerson?.lastName || '').trim().toLowerCase();
+
+      if (prevLast && nextLast && prevLast === nextLast) {
+        // We have a split conflict inside a family! Find start and end of this family block
+        let start = splitIdx - 1;
+        while (start > 0 && (peopleList[start - 1]?.lastName || '').trim().toLowerCase() === prevLast) {
+          start--;
+        }
+
+        let end = splitIdx;
+        while (end < num && (peopleList[end]?.lastName || '').trim().toLowerCase() === prevLast) {
+          end++;
+        }
+
+        // Option A: Split at start (family goes to Row 2)
+        const offsetA = Math.abs(2 * start - num);
+
+        // Option B: Split at end (family goes to Row 1)
+        const offsetB = Math.abs(2 * end - num);
+
+        // Choose the split index that gives the better balance
+        if (offsetA <= offsetB) {
+          splitIdx = start;
+        } else {
+          splitIdx = end;
+        }
+
+        // Safeguard: if splitting at start/end leaves one row completely empty, fallback to target split
+        if (splitIdx === 0 || splitIdx === num) {
+          splitIdx = Math.ceil(num / 2);
+        }
+      }
+
+      const num1 = splitIdx;
       const num2 = num - num1;
       const maxInRow = Math.max(num1, num2);
       
@@ -116,7 +155,7 @@ export default function SlidePreview({
     }
   };
 
-  const layout = isLED ? getLEDLayout(N) : (LAYOUTS[N] || []);
+  const layout = isLED ? getLEDLayout(people) : (LAYOUTS[N] || []);
 
   // Close dropdown on click outside
   useEffect(() => {

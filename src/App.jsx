@@ -215,36 +215,66 @@ export default function App() {
           people: filtered
         });
       } else {
-        if (perSlide === 'auto') {
-          // Auto-Balance strategy:
-          // - N <= 4: 1 slide of size N
-          // - 4 < N <= 8: 2 slides of size N/2 balanced
-          // - N > 8: math.ceil(N/4) slides of size N/S balanced
-          const S = Math.ceil(N / 4);
-          const base = Math.floor(N / S);
-          const rem = N % S;
-          let currentIndex = 0;
-          
-          for (let s = 0; s < S; s++) {
-            const size = s < rem ? base + 1 : base;
-            const chunk = filtered.slice(currentIndex, currentIndex + size);
-            currentIndex += size;
-            newSlides[service].push({
-              id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${s}`,
-              people: chunk
-            });
+        // Group candidates into families by matching adjacent last names
+        const families = [];
+        let currentFamily = [];
+
+        filtered.forEach((c) => {
+          if (currentFamily.length === 0) {
+            currentFamily.push(c);
+          } else {
+            const prev = currentFamily[currentFamily.length - 1];
+            const prevLast = (prev.lastName || '').trim().toLowerCase();
+            const currLast = (c.lastName || '').trim().toLowerCase();
+
+            // Keep together if last names are identical and non-empty
+            if (prevLast && currLast && prevLast === currLast) {
+              currentFamily.push(c);
+            } else {
+              families.push(currentFamily);
+              currentFamily = [c];
+            }
           }
-        } else {
-          // Numeric per-slide strategy (K per slide)
-          const K = parseInt(perSlide, 10) || 2;
-          for (let i = 0; i < N; i += K) {
-            const chunk = filtered.slice(i, i + K);
-            newSlides[service].push({
-              id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${i / K}`,
-              people: chunk
-            });
-          }
+        });
+        if (currentFamily.length > 0) {
+          families.push(currentFamily);
         }
+
+        const targetCapacity = perSlide === 'auto' ? 4 : parseInt(perSlide, 10);
+        const resultSlides = [[]];
+
+        families.forEach((fam) => {
+          let activeSlide = resultSlides[resultSlides.length - 1];
+
+          if (targetCapacity === 1) {
+            // Strict 1-per-slide limit requested
+            fam.forEach((member) => {
+              if (activeSlide.length === 1) {
+                resultSlides.push([member]);
+                activeSlide = resultSlides[resultSlides.length - 1];
+              } else {
+                activeSlide.push(member);
+              }
+            });
+            return;
+          }
+
+          // If adding this family exceeds the target capacity, start a new slide
+          if (activeSlide.length > 0 && activeSlide.length + fam.length > targetCapacity) {
+            resultSlides.push([...fam]);
+          } else {
+            fam.forEach(m => activeSlide.push(m));
+          }
+        });
+
+        // Map resulting partition array to slides state
+        resultSlides.forEach((chunk, sIdx) => {
+          if (chunk.length === 0) return;
+          newSlides[service].push({
+            id: `${service.replace(/[^a-z0-9]/gi, '')}_slide_${sIdx}`,
+            people: chunk
+          });
+        });
       }
     });
 
@@ -690,7 +720,8 @@ export default function App() {
 
     triggerToast('Generating and downloading graphics... please wait.');
 
-    const getLEDLayout = (num) => {
+    const getLEDLayout = (peopleList) => {
+      const num = peopleList.length;
       if (num === 0) return [];
       
       if (num < 16) {
@@ -717,7 +748,45 @@ export default function App() {
         return layoutArray;
       } else {
         // Double Row layout (16 or more people)
-        const num1 = Math.ceil(num / 2);
+        let splitIdx = Math.ceil(num / 2);
+
+        const prevPerson = peopleList[splitIdx - 1];
+        const nextPerson = peopleList[splitIdx];
+        const prevLast = (prevPerson?.lastName || '').trim().toLowerCase();
+        const nextLast = (nextPerson?.lastName || '').trim().toLowerCase();
+
+        if (prevLast && nextLast && prevLast === nextLast) {
+          // We have a split conflict inside a family! Find start and end of this family block
+          let start = splitIdx - 1;
+          while (start > 0 && (peopleList[start - 1]?.lastName || '').trim().toLowerCase() === prevLast) {
+            start--;
+          }
+
+          let end = splitIdx;
+          while (end < num && (peopleList[end]?.lastName || '').trim().toLowerCase() === prevLast) {
+            end++;
+          }
+
+          // Option A: Split at start (family goes to Row 2)
+          const offsetA = Math.abs(2 * start - num);
+
+          // Option B: Split at end (family goes to Row 1)
+          const offsetB = Math.abs(2 * end - num);
+
+          // Choose the split index that gives the better balance
+          if (offsetA <= offsetB) {
+            splitIdx = start;
+          } else {
+            splitIdx = end;
+          }
+
+          // Safeguard: if splitting at start/end leaves one row completely empty, fallback to target split
+          if (splitIdx === 0 || splitIdx === num) {
+            splitIdx = Math.ceil(num / 2);
+          }
+        }
+
+        const num1 = splitIdx;
         const num2 = num - num1;
         const maxInRow = Math.max(num1, num2);
         
@@ -771,7 +840,7 @@ export default function App() {
 
       // Draw people
       const N = slide.people.length;
-      const layout = isLED ? getLEDLayout(N) : (LAYOUTS[N] || []);
+      const layout = isLED ? getLEDLayout(slide.people) : (LAYOUTS[N] || []);
 
       for (let i = 0; i < N; i++) {
         const person = slide.people[i];
