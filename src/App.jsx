@@ -113,7 +113,7 @@ export default function App() {
   useEffect(() => {
     const customTemplate = localStorage.getItem('custom_template_data');
     const img = new Image();
-    img.src = customTemplate || '/template.png';
+    img.src = customTemplate || './template.png';
     img.onload = () => {
       setTemplateImgEl(img);
       setTemplateLoaded(true);
@@ -121,7 +121,7 @@ export default function App() {
     img.onerror = () => {
       if (customTemplate) {
         const fallback = new Image();
-        fallback.src = '/template.png';
+        fallback.src = './template.png';
         fallback.onload = () => {
           setTemplateImgEl(fallback);
           setTemplateLoaded(true);
@@ -131,7 +131,7 @@ export default function App() {
 
     // Pre-load Silhouettes
     const femaleImg = new Image();
-    femaleImg.src = '/samples/silhouette_female.png';
+    femaleImg.src = './samples/silhouette_female.png';
     femaleImg.onload = () => {
       setPhotos((prev) => {
         if (prev.some((p) => p.name === 'silhouette_female.png')) return prev;
@@ -155,7 +155,7 @@ export default function App() {
     };
 
     const maleImg = new Image();
-    maleImg.src = '/samples/silhouette_male.png';
+    maleImg.src = './samples/silhouette_male.png';
     maleImg.onload = () => {
       setPhotos((prev) => {
         if (prev.some((p) => p.name === 'silhouette_male.png')) return prev;
@@ -207,7 +207,7 @@ export default function App() {
   const handleResetTemplate = () => {
     localStorage.removeItem('custom_template_data');
     const img = new Image();
-    img.src = '/template.png?t=' + Date.now(); // Cache bust the reload
+    img.src = './template.png?t=' + Date.now(); // Cache bust the reload
     img.onload = () => {
       setTemplateImgEl(img);
       setTemplateLoaded(true);
@@ -617,7 +617,7 @@ export default function App() {
 
     sampleFiles.forEach((sample) => {
       const img = new Image();
-      img.src = `/samples/${sample.file}`;
+      img.src = `./samples/${sample.file}`;
       img.onload = () => {
         const parsedMeta = parseFilenamePattern(sample.name);
         const defaultCrop = getDefaultCropSettings(img.width, img.height, outputMode);
