@@ -1062,7 +1062,7 @@ export default function App() {
             Reset App
           </button>
           <button className="btn-primary" onClick={handleLoadSamples} style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>
-            ⚡ Load Sample Data
+            Load Sample Data
           </button>
         </div>
       </header>
