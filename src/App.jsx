@@ -636,7 +636,10 @@ export default function App() {
         loadedCount++;
 
         if (loadedCount === sampleFiles.length) {
-          setPhotos(loadedPhotos);
+          setPhotos((prev) => {
+            const silhouettes = prev.filter(p => p.isSilhouette);
+            return [...silhouettes, ...loadedPhotos];
+          });
           triggerToast('Loaded sample candidate data and matched photos!');
         }
       };
@@ -1038,7 +1041,7 @@ export default function App() {
   const handleClearAll = () => {
     if (window.confirm('Are you sure you want to clear all candidates and photos?')) {
       setCandidates([]);
-      setPhotos([]);
+      setPhotos((prev) => prev.filter(p => p.isSilhouette));
       setSlides({ '9:00 AM': [], '11:15 AM': [], '4:00 PM': [] });
       triggerToast('Cleared all data.');
     }
