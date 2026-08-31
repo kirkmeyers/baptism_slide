@@ -515,7 +515,14 @@ export default function App() {
       { name: 'Steven_Rodriguez_400pm_20260816.png', file: 'James_Miller_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
       { name: 'Paul_Hernandez_400pm_20260816.png', file: 'Lisa_Brown_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
       { name: 'Mark_Lopez_400pm_20260816.png', file: 'Sarah_Thomas_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
-      { name: 'Donald_Gonzalez_400pm_20260816.png', file: 'David_Wilson_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 }
+      { name: 'Donald_Gonzalez_400pm_20260816.png', file: 'David_Wilson_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Patricia_Taylor_400pm_20260816.png', file: 'Sarah_Thomas_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Barbara_Anderson_400pm_20260816.png', file: 'David_Wilson_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Jessica_Jackson_400pm_20260816.png', file: 'James_Miller_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Elizabeth_White_400pm_20260816.png', file: 'Lisa_Brown_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Jennie_Martin_400pm_20260816.png', file: 'Sarah_Thomas_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Susan_Harris_400pm_20260816.png', file: 'David_Wilson_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 },
+      { name: 'Margaret_Thompson_400pm_20260816.png', file: 'James_Miller_400pm_20260816.png', zoom: 1, panX: 0, panY: 0 }
     ];
 
     let loadedCount = 0;
@@ -683,30 +690,66 @@ export default function App() {
 
     triggerToast('Generating and downloading graphics... please wait.');
 
-    const getLEDLayout = (N) => {
-      if (N === 0) return [];
-      let size = 390;
-      let gap = 60;
-      let totalWidth = N * size + (N - 1) * gap;
-
-      if (totalWidth > 7920) {
-        const scale = 7920 / totalWidth;
-        size = Math.floor(390 * scale);
-        gap = Math.floor(60 * scale);
-        totalWidth = N * size + (N - 1) * gap;
-      }
-
-      const startX = (7920 - totalWidth) / 2;
-      const textHeight = 155;
-      const spacing = 40;
-      const yStart = 375;
+    const getLEDLayout = (num) => {
+      if (num === 0) return [];
       
-      const layoutArray = [];
-      for (let i = 0; i < N; i++) {
-        const x = startX + i * (size + gap);
-        layoutArray.push({ x, y: yStart, size });
+      if (num < 16) {
+        // Single Row layout
+        let size = 390;
+        let gap = 60;
+        let totalWidth = num * size + (num - 1) * gap;
+
+        if (totalWidth > 7920) {
+          const scale = 7920 / totalWidth;
+          size = Math.floor(390 * scale);
+          gap = Math.floor(60 * scale);
+          totalWidth = num * size + (num - 1) * gap;
+        }
+
+        const startX = (7920 - totalWidth) / 2;
+        const yStart = 375;
+        
+        const layoutArray = [];
+        for (let i = 0; i < num; i++) {
+          const x = startX + i * (size + gap);
+          layoutArray.push({ x, y: yStart, size });
+        }
+        return layoutArray;
+      } else {
+        // Double Row layout (16 or more people)
+        const num1 = Math.ceil(num / 2);
+        const num2 = num - num1;
+        const maxInRow = Math.max(num1, num2);
+        
+        let size = 390;
+        let gap = 60;
+        let totalWidth = maxInRow * size + (maxInRow - 1) * gap;
+
+        if (totalWidth > 7920) {
+          const scale = 7920 / totalWidth;
+          size = Math.floor(390 * scale);
+          gap = Math.floor(60 * scale);
+        }
+
+        const row1Width = num1 * size + (num1 - 1) * gap;
+        const row2Width = num2 * size + (num2 - 1) * gap;
+        
+        const startX1 = (7920 - row1Width) / 2;
+        const startX2 = (7920 - row2Width) / 2;
+        
+        const layoutArray = [];
+        // Row 1 (Top)
+        for (let i = 0; i < num1; i++) {
+          const x = startX1 + i * (size + gap);
+          layoutArray.push({ x, y: 38, size });
+        }
+        // Row 2 (Bottom)
+        for (let i = 0; i < num2; i++) {
+          const x = startX2 + i * (size + gap);
+          layoutArray.push({ x, y: 640, size });
+        }
+        return layoutArray;
       }
-      return layoutArray;
     };
 
     let index = 1;

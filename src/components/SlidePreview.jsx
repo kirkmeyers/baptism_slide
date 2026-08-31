@@ -56,28 +56,64 @@ export default function SlidePreview({
 
   const getLEDLayout = (num) => {
     if (num === 0) return [];
-    let size = 390;
-    let gap = 60;
-    let totalWidth = num * size + (num - 1) * gap;
-
-    if (totalWidth > 7920) {
-      const scale = 7920 / totalWidth;
-      size = Math.floor(390 * scale);
-      gap = Math.floor(60 * scale);
-      totalWidth = num * size + (num - 1) * gap;
-    }
-
-    const startX = (7920 - totalWidth) / 2;
-    const textHeight = 155;
-    const spacing = 40;
-    const yStart = 375;
     
-    const layoutArray = [];
-    for (let i = 0; i < num; i++) {
-      const x = startX + i * (size + gap);
-      layoutArray.push({ x, y: yStart, size });
+    if (num < 16) {
+      // Single Row layout
+      let size = 390;
+      let gap = 60;
+      let totalWidth = num * size + (num - 1) * gap;
+
+      if (totalWidth > 7920) {
+        const scale = 7920 / totalWidth;
+        size = Math.floor(390 * scale);
+        gap = Math.floor(60 * scale);
+        totalWidth = num * size + (num - 1) * gap;
+      }
+
+      const startX = (7920 - totalWidth) / 2;
+      const yStart = 375;
+      
+      const layoutArray = [];
+      for (let i = 0; i < num; i++) {
+        const x = startX + i * (size + gap);
+        layoutArray.push({ x, y: yStart, size });
+      }
+      return layoutArray;
+    } else {
+      // Double Row layout (16 or more people)
+      const num1 = Math.ceil(num / 2);
+      const num2 = num - num1;
+      const maxInRow = Math.max(num1, num2);
+      
+      let size = 390;
+      let gap = 60;
+      let totalWidth = maxInRow * size + (maxInRow - 1) * gap;
+
+      if (totalWidth > 7920) {
+        const scale = 7920 / totalWidth;
+        size = Math.floor(390 * scale);
+        gap = Math.floor(60 * scale);
+      }
+
+      const row1Width = num1 * size + (num1 - 1) * gap;
+      const row2Width = num2 * size + (num2 - 1) * gap;
+      
+      const startX1 = (7920 - row1Width) / 2;
+      const startX2 = (7920 - row2Width) / 2;
+      
+      const layoutArray = [];
+      // Row 1 (Top)
+      for (let i = 0; i < num1; i++) {
+        const x = startX1 + i * (size + gap);
+        layoutArray.push({ x, y: 38, size });
+      }
+      // Row 2 (Bottom)
+      for (let i = 0; i < num2; i++) {
+        const x = startX2 + i * (size + gap);
+        layoutArray.push({ x, y: 640, size });
+      }
+      return layoutArray;
     }
-    return layoutArray;
   };
 
   const layout = isLED ? getLEDLayout(N) : (LAYOUTS[N] || []);
