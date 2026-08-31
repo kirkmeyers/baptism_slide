@@ -1044,10 +1044,10 @@ export default function App() {
         </div>
         <div className="header-actions">
           <button className="btn-secondary" onClick={() => setShowHelpModal(true)} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-            ❓ Help
+            Help
           </button>
           <label className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer', margin: 0 }}>
-            🖼️ Change Template
+            Change Template
             <input
               type="file"
               accept="image/*"
@@ -1056,7 +1056,7 @@ export default function App() {
             />
           </label>
           <button className="btn-secondary" onClick={handleResetTemplate} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-            🔄 Reset Template
+            Reset Template
           </button>
           <button className="btn-secondary" onClick={handleClearAll} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
             Reset App
