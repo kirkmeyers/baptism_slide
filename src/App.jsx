@@ -81,6 +81,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [enableFamilyGrouping, setEnableFamilyGrouping] = useState(true);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Load template image on startup (check custom template cache first)
   useEffect(() => {
@@ -1037,11 +1038,14 @@ export default function App() {
             </svg>
           </div>
           <div>
-            <h1>Watermark Baptism Graphics</h1>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Automated Slide Compositor</p>
+            <h1>Baptism Graphics Generator</h1>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Video Production Team</p>
           </div>
         </div>
         <div className="header-actions">
+          <button className="btn-secondary" onClick={() => setShowHelpModal(true)} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+            ❓ Help
+          </button>
           <label className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer', margin: 0 }}>
             🖼️ Change Template
             <input
@@ -1404,6 +1408,41 @@ export default function App() {
           onAssignPhoto={handleAssignPhoto}
           enableFamilyGrouping={enableFamilyGrouping}
         />
+      )}
+
+      {showHelpModal && (
+        <div className="modal-overlay" onClick={() => setShowHelpModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px', padding: '2.5rem', background: '#1D252C', border: '1px solid rgba(185, 210, 220, 0.3)' }}>
+            <button className="modal-close-btn" onClick={() => setShowHelpModal(false)}>&times;</button>
+            <h2 style={{ fontSize: '1.75rem', marginBottom: '1.25rem', color: 'var(--text-primary)' }}>Baptism Graphics Generator Help</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontSize: '0.9rem', lineHeight: '1.6', color: 'rgba(242, 240, 236, 0.85)' }}>
+              <p>
+                <strong>What this tool does:</strong><br/>
+                This utility automatically formats, positions, and generates slide and widescreen graphics for candidates being baptized. It handles image sizing, borders, text overlays, and layouts dynamically.
+              </p>
+              <div>
+                <strong>How to use it:</strong>
+                <ul style={{ paddingLeft: '1.25rem', marginTop: '0.35rem' }}>
+                  <li><strong>Upload Photos:</strong> Drag & drop candidate photos or folders, or select them via dialog. Files are automatically parsed for names and times.</li>
+                  <li><strong>Choose Display Mode:</strong> Select <strong>Option 1 (Slide Show)</strong> for standard 1920x1080 slides, or <strong>Option 2 (7920 LED Wide)</strong> for panoramic LED wall strips.</li>
+                  <li><strong>Manual Crop Adjustments:</strong> Click any candidate's photo card to open the crop/position editor to scale or shift their photo.</li>
+                  <li><strong>Download Graphics:</strong> Export your final composition as high-resolution PNGs ready for presentation.</li>
+                </ul>
+              </div>
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                <strong>Logic & Layout Rules:</strong>
+                <ul style={{ paddingLeft: '1.25rem', marginTop: '0.35rem' }}>
+                  <li><strong>Auto Scaling:</strong> Photos cover-fit within their crop frames by default.</li>
+                  <li><strong>Family Grouping:</strong> Toggling this on keeps candidates with matching last names together on the same screen/slide and avoids dividing them between top and bottom widescreen rows.</li>
+                  <li><strong>Two-Row Layouts:</strong> In Widescreen mode, 16 or more candidates are automatically balanced into two rows with horizontal centering offsets at 38px and 640px.</li>
+                </ul>
+              </div>
+              <p style={{ fontSize: '0.8rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', fontStyle: 'italic', margin: 0 }}>
+                If you have feedback or see improvements that would be helpful, please contact <strong>Kirk Meyers</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast notifications */}
