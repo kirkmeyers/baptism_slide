@@ -411,13 +411,21 @@ export default function App() {
 
       const fullName = `${first} ${last}`.trim();
 
+      let activeImage = photo;
+      if (photo.assignedSilhouette) {
+        const silhouette = photos.find(p => p.name === photo.assignedSilhouette);
+        if (silhouette) {
+          activeImage = silhouette;
+        }
+      }
+
       return {
         id: photo.name,
         fullName: fullName,
         firstName: first,
         lastName: last,
         serviceTime: service,
-        imageFile: photo,
+        imageFile: activeImage,
         originalImageFile: photo.isSilhouette ? null : photo,
         sortOrder: photo.sortOrder || 0,
         zoom: photo.zoom || 1,
@@ -715,16 +723,23 @@ export default function App() {
   };
 
   // Save crop adjustments for all people on a slide
-  const handleUpdateCrop = (slideId, draftCropsArray) => {
+  const handleUpdateCrop = (slideId, draftPeopleArray) => {
     const slide = [...slides['9:00 AM'], ...slides['11:15 AM'], ...slides['4:00 PM']].find(s => s.id === slideId);
     if (!slide) return;
 
     setPhotos((prev) =>
       prev.map((photo) => {
-        const personIdx = slide.people.findIndex(p => p.imageFile && p.imageFile.name === photo.name);
-        if (personIdx !== -1 && draftCropsArray[personIdx]) {
-          const crop = draftCropsArray[personIdx];
-          return { ...photo, zoom: crop.zoom, panX: crop.panX, panY: crop.panY };
+        const personIdx = slide.people.findIndex(p => p.originalImageFile && p.originalImageFile.name === photo.name);
+        if (personIdx !== -1 && draftPeopleArray[personIdx]) {
+          const draft = draftPeopleArray[personIdx];
+          const isSilhouette = draft.imageFile?.isSilhouette;
+          return { 
+            ...photo, 
+            zoom: draft.zoom, 
+            panX: draft.panX, 
+            panY: draft.panY,
+            assignedSilhouette: isSilhouette ? draft.imageFile.name : null
+          };
         }
         return photo;
       })

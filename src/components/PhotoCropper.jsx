@@ -227,10 +227,18 @@ export default function PhotoCropper({
         return {
           zoom: initZoom,
           panX: Math.max(minX, Math.min(maxX, initPanX)),
-          panY: Math.max(minY, Math.min(maxY, initPanY))
+          panY: Math.max(minY, Math.min(maxY, initPanY)),
+          imageFile: p.imageFile,
+          originalImageFile: p.originalImageFile
         };
       }
-      return { zoom: initZoom, panX: initPanX, panY: initPanY };
+      return { 
+        zoom: initZoom, 
+        panX: initPanX, 
+        panY: initPanY,
+        imageFile: p.imageFile,
+        originalImageFile: p.originalImageFile
+      };
     })
   );
   
@@ -452,6 +460,8 @@ export default function PhotoCropper({
         const savedPhoto = availablePhotos.find(p => p.name === originalPhoto.name) || originalPhoto;
         setDraftPeople((prev) =>
           prev.map((item, idx) => (idx === activeIdx ? { 
+            ...item,
+            imageFile: originalPhoto,
             zoom: savedPhoto.zoom || 1.0, 
             panX: savedPhoto.panX || 0, 
             panY: savedPhoto.panY || 0 
@@ -461,7 +471,13 @@ export default function PhotoCropper({
         // Clear assignment if there was no original photo
         onAssignPhoto(slide.id, activeIdx, null);
         setDraftPeople((prev) =>
-          prev.map((item, idx) => (idx === activeIdx ? { zoom: 1.0, panX: 0, panY: 0 } : item))
+          prev.map((item, idx) => (idx === activeIdx ? { 
+            ...item,
+            imageFile: null,
+            zoom: 1.0, 
+            panX: 0, 
+            panY: 0 
+          } : item))
         );
       }
     } else {
@@ -470,7 +486,13 @@ export default function PhotoCropper({
       if (photoObj) {
         onAssignPhoto(slide.id, activeIdx, photoObj);
         setDraftPeople((prev) =>
-          prev.map((item, idx) => (idx === activeIdx ? { zoom: 1.0, panX: 0, panY: 0 } : item))
+          prev.map((item, idx) => (idx === activeIdx ? { 
+            ...item,
+            imageFile: photoObj,
+            zoom: 1.0, 
+            panX: 0, 
+            panY: 0 
+          } : item))
         );
       }
     }
