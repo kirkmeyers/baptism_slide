@@ -1047,7 +1047,7 @@ export default function App() {
             Help
           </button>
           <label className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer', margin: 0 }}>
-            Change Template
+            <span>Change Template</span>
             <input
               type="file"
               accept="image/*"
