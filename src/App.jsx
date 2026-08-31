@@ -19,8 +19,33 @@ const toTitleCase = (str) => {
 const parseFilenamePattern = (filename) => {
   const base = filename.replace(/\.[^/.]+$/, '').trim();
   const parts = base.split('_');
-  if (parts.length >= 3) {
-    // Find the part representing the service time (e.g., "900am", "1115am", "400pm")
+  
+  if (parts.length >= 2) {
+    // Check if the prefix is a service code like 9a, 11a, 4p, 900am, etc.
+    const isPrefixService = /^\d+(a|p|am|pm)$/i.test(parts[0]);
+    if (isPrefixService) {
+      const serviceCode = parts[0].toLowerCase();
+      let serviceTime = '9:00 AM';
+      if (serviceCode.startsWith('9')) serviceTime = '9:00 AM';
+      else if (serviceCode.startsWith('11')) serviceTime = '11:15 AM';
+      else if (serviceCode.startsWith('4')) serviceTime = '4:00 PM';
+      
+      // Determine name parts by removing prefix and date (if present at the end)
+      let nameParts = parts.slice(1);
+      if (nameParts.length > 1) {
+        const lastPart = nameParts[nameParts.length - 1].trim();
+        // If the last part is a date (e.g. 20260816) or format key
+        if (/^\d{4,8}$/.test(lastPart)) {
+          nameParts = nameParts.slice(0, nameParts.length - 1);
+        }
+      }
+      
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      return { firstName, lastName, name: `${firstName} ${lastName}`.trim(), serviceTime };
+    }
+
+    // Original behavior: service time in the middle (e.g. Jane_Smith_900am_20260816)
     const serviceIdx = parts.findIndex(p => /^\d+(am|pm)$/i.test(p));
     if (serviceIdx !== -1 && serviceIdx >= 2) {
       const nameParts = parts.slice(0, serviceIdx);
@@ -36,6 +61,7 @@ const parseFilenamePattern = (filename) => {
       return { firstName, lastName, name: `${firstName} ${lastName}`, serviceTime };
     }
   }
+  
   // Fallback pattern matching
   const match = base.match(/^(\d+)?[_\-\s]*(.+?)[_\-\s]*(\d+)?$/);
   if (match) {
