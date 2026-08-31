@@ -187,6 +187,14 @@ export default function PhotoCropper({
     return { minX, maxX, minY, maxY };
   };
 
+  // Store the initial image assignments when the modal is opened
+  const [initialPeople] = useState(() => 
+    people.map(p => ({
+      imageFile: p.imageFile,
+      originalImageFile: p.originalImageFile
+    }))
+  );
+
   // Store draft crop settings for all people on this slide (clamped on mount)
   const [draftPeople, setDraftPeople] = useState(() => 
     people.map((p, idx) => {
@@ -468,6 +476,14 @@ export default function PhotoCropper({
     }
   };
 
+  const handleCancel = () => {
+    // Revert parent assignments back to their initial state on cancel
+    initialPeople.forEach((p, idx) => {
+      onAssignPhoto(slide.id, idx, p.imageFile);
+    });
+    onClose();
+  };
+
   const handleSave = () => {
     onUpdateCrop(slide.id, draftPeople);
     onClose();
@@ -627,7 +643,7 @@ export default function PhotoCropper({
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-              <button className="btn-secondary" onClick={onClose} style={{ flex: 1 }}>
+              <button className="btn-secondary" onClick={handleCancel} style={{ flex: 1 }}>
                 Cancel
               </button>
               <button className="btn-primary" onClick={handleSave} style={{ flex: 1.5 }}>
