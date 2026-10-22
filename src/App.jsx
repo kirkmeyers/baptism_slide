@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import JSZip from 'jszip';
+import heic2any from 'heic2any';
 import './App.css';
 import { parseRockInput } from './utils/parser';
 import SlidePreview, { LAYOUTS } from './components/SlidePreview';
@@ -440,19 +441,55 @@ export default function App() {
 
   // Handle Photo files upload
   // Core logic to load, resolve, and update photos list (supporting multiple/replacement matches)
-  const processPhotos = (allFiles) => {
-    const files = allFiles.filter(file => file.type.startsWith('image/'));
+  const processPhotos = async (allFiles) => {
+    const isHeicFile = (file) => {
+      const name = (file.name || '').toLowerCase();
+      const type = (file.type || '').toLowerCase();
+      return (
+        type === 'image/heic' ||
+        type === 'image/heif' ||
+        name.endsWith('.heic') ||
+        name.endsWith('.heif')
+      );
+    };
+
+    const isSupportedImageFile = (file) => {
+      if (!file || !file.name || file.name.startsWith('.')) return false;
+      if (file.type && file.type.startsWith('image/')) return true;
+      return /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)$/i.test(file.name);
+    };
+
+    const files = allFiles.filter(isSupportedImageFile);
     
     if (files.length === 0) {
       triggerToast('No image files found in selection!');
       return;
     }
 
+    if (files.some(isHeicFile)) {
+      triggerToast('Converting HEIC photo(s)... please wait.');
+    }
+
     const newPhotos = [];
     let loadedCount = 0;
 
-    files.forEach((file) => {
-      const url = URL.createObjectURL(file);
+    files.forEach(async (file) => {
+      let sourceBlob = file;
+      if (isHeicFile(file)) {
+        try {
+          const converted = await heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.92
+          });
+          sourceBlob = Array.isArray(converted) ? converted[0] : converted;
+        } catch (err) {
+          console.warn('HEIC conversion fallback to raw file for:', file.name, err);
+          sourceBlob = file;
+        }
+      }
+
+      const url = URL.createObjectURL(sourceBlob);
       const img = new Image();
       img.src = url;
       
